@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"time"
 
 	"github.com/hashicorp/nomad/api"
 	"github.com/hashicorp/nomad/jobspec"
@@ -149,14 +148,27 @@ func handleStatus() int {
 
 	// Wait loop for allocation statuses
 	var last int64
+	var index uint64 = 1
 	for {
-		time.Sleep(10 * time.Millisecond)
-		resp, _, err := allocs.List(&api.QueryOptions{AllowStale: true})
+		// Set up the args
+		args := &api.QueryOptions{
+			AllowStale: true,
+			WaitIndex:  index,
+		}
+
+		// Start the query
+		resp, qm, err := allocs.List(args)
 		if err != nil {
 			// Only log and continue to skip minor errors
 			log.Printf("failed querying allocations: %v", err)
 			continue
 		}
+
+		// Check the index
+		if qm.LastIndex == index {
+			continue
+		}
+		index = qm.LastIndex
 
 		// Check the response
 		var allocsRunning int64
