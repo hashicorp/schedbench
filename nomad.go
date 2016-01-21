@@ -84,12 +84,12 @@ func handleRun() int {
 	// Parse the inputs
 	var err error
 	var numJobs int
-	if numJobs, err = strconv.Atoi(os.Args[2]); err != nil {
+	if numJobs, err = strconv.Atoi(os.Args[3]); err != nil {
 		log.Fatalln("number of jobs must be numeric")
 	}
 
 	// Get the job file path
-	jobFile := filepath.Join(os.Args[3], "job.nomad")
+	jobFile := filepath.Join(os.Args[2], "job.nomad")
 
 	// Parse the job file
 	job, err := jobspec.ParseFile(jobFile)
@@ -112,6 +112,8 @@ func handleRun() int {
 
 	// Submit the job the requested number of times
 	for i := 0; i < numJobs; i++ {
+		// Increment the job ID
+		apiJob.ID = fmt.Sprintf("job-%d", i)
 		if _, _, err := jobs.Register(apiJob, nil); err != nil {
 			log.Fatalf("failed registering jobs: %v", err)
 		}
@@ -124,6 +126,23 @@ func handleTeardown() int {
 	// Check the args
 	if len(os.Args) != 3 {
 		log.Fatalln("usage: nomad-bench teardown <dir>")
+	}
+
+	// Get the API client
+	client, err := api.NewClient(api.DefaultConfig())
+	if err != nil {
+		log.Fatalf("failed creating nomad client: %v", err)
+	}
+
+	// Iterate all of the jobs and stop them
+	jobs, _, err := client.Jobs().List(nil)
+	if err != nil {
+		log.Fatalf("failed listing jobs: %v", err)
+	}
+	for _, job := range jobs {
+		if _, _, err := client.Jobs().Deregister(job.ID, nil); err != nil {
+			log.Fatalf("failed deregistering job: %v", err)
+		}
 	}
 
 	// Nuke the dir
