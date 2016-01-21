@@ -148,6 +148,7 @@ func handleStatus() int {
 	defer conn.Close()
 
 	// Wait loop for allocation statuses
+	var last int64
 	for {
 		time.Sleep(10 * time.Millisecond)
 		resp, _, err := allocs.List(nil)
@@ -164,6 +165,12 @@ func handleStatus() int {
 				allocsRunning++
 			}
 		}
+
+		// Skip if there was no change
+		if allocsRunning == last {
+			continue
+		}
+		last = allocsRunning
 
 		// Send the current count
 		payload := strconv.FormatInt(allocsRunning, 10) + "\n"
@@ -227,6 +234,10 @@ job "bench" {
 
 	group "cache" {
 		count = %d
+
+		restart {
+			attempts = 0
+		}
 
 		task "bench" {
 			driver = "docker"
