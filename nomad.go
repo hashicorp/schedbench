@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/hashicorp/nomad/api"
 	"github.com/hashicorp/nomad/jobspec"
@@ -18,6 +20,7 @@ import (
 // Exec interface:
 //   setup(numJobs, numContainers int) string
 //   run(dir string, numJobs, numContainers int)
+//   status(addr string)
 //   teardown(dir string)
 
 func main() {
@@ -32,10 +35,12 @@ func main() {
 		os.Exit(handleSetup())
 	case "run":
 		os.Exit(handleRun())
+	case "status":
+		os.Exit(handleStatus())
 	case "teardown":
 		os.Exit(handleTeardown())
 	default:
-		log.Fatalln("unknown command: %q", os.Args[1])
+		log.Fatalf("unknown command: %q", os.Args[1])
 	}
 }
 
@@ -122,6 +127,55 @@ func handleRun() int {
 	return 0
 }
 
+func handleStatus() int {
+	// Check the args
+	if len(os.Args) != 3 {
+		log.Fatalln("usage: nomad-bench status <addr>")
+	}
+
+	// Get the API client
+	client, err := api.NewClient(api.DefaultConfig())
+	if err != nil {
+		log.Fatalf("failed creating nomad client: %v", err)
+	}
+	allocs := client.Allocations()
+
+	// Connect to the status server
+	conn, err := net.Dial("tcp", os.Args[2])
+	if err != nil {
+		log.Fatalf("failed contacting status server: %v", err)
+	}
+	defer conn.Close()
+
+	// Wait loop for allocation statuses
+	for {
+		time.Sleep(10 * time.Millisecond)
+		resp, _, err := allocs.List(nil)
+		if err != nil {
+			// Only log and continue to skip minor errors
+			log.Printf("failed querying allocations: %v", err)
+			continue
+		}
+
+		// Check the response
+		var allocsRunning int64
+		for _, alloc := range resp {
+			if alloc.ClientStatus == structs.AllocClientStatusRunning {
+				allocsRunning++
+			}
+		}
+
+		// Send the current count
+		payload := strconv.FormatInt(allocsRunning, 10) + "\n"
+		if _, err := conn.Write([]byte(payload)); err != nil {
+			log.Printf("failed writing status update: %v", err)
+			continue
+		}
+	}
+
+	return 0
+}
+
 func handleTeardown() int {
 	// Check the args
 	if len(os.Args) != 3 {
@@ -169,16 +223,16 @@ func convertStructJob(in *structs.Job) (*api.Job, error) {
 
 const jobTemplate = `
 job "bench" {
-	datacenters = ["us-central1-a"]
+	datacenters = ["dc1"]
 
 	group "cache" {
 		count = %d
 
-		task "redis" {
+		task "bench" {
 			driver = "docker"
 
 			config {
-				image = "redis"
+				image = "redis:latest"
 			}
 
 			resources {
