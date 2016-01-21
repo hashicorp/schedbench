@@ -151,7 +151,7 @@ func handleStatus() int {
 	var last int64
 	for {
 		time.Sleep(10 * time.Millisecond)
-		resp, _, err := allocs.List(nil)
+		resp, _, err := allocs.List(&api.QueryOptions{AllowStale: true})
 		if err != nil {
 			// Only log and continue to skip minor errors
 			log.Printf("failed querying allocations: %v", err)
