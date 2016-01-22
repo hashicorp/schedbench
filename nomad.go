@@ -139,15 +139,15 @@ func handleStatus() int {
 	}
 	allocs := client.Allocations()
 
-	// Connect to the status server
-	conn, err := net.Dial("tcp", os.Args[2])
+	// Get the status client
+	statusClient, err := newStatusClient(os.Args[2])
 	if err != nil {
 		log.Fatalf("failed contacting status server: %v", err)
 	}
-	defer conn.Close()
+	defer statusClient.close()
 
 	// Wait loop for allocation statuses
-	var last int64
+	var lastPending, lastRunning, lastTotal int64
 	var index uint64 = 1
 	for {
 		// Set up the args
@@ -171,24 +171,29 @@ func handleStatus() int {
 		index = qm.LastIndex
 
 		// Check the response
-		var allocsRunning int64
+		allocsTotal := int64(len(resp))
+		var allocsPending, allocsRunning int64
 		for _, alloc := range resp {
-			if alloc.ClientStatus == structs.AllocClientStatusRunning {
+			switch alloc.ClientStatus {
+			case structs.AllocClientStatusPending:
+				allocsPending++
+			case structs.AllocClientStatusRunning:
 				allocsRunning++
 			}
 		}
 
-		// Skip if there was no change
-		if allocsRunning == last {
-			continue
+		// Write the metrics, if there were changes.
+		if allocsTotal != lastTotal {
+			lastTotal = allocsTotal
+			statusClient.write("placed", float64(allocsTotal))
 		}
-		last = allocsRunning
-
-		// Send the current count
-		payload := strconv.FormatInt(allocsRunning, 10) + "\n"
-		if _, err := conn.Write([]byte(payload)); err != nil {
-			log.Printf("failed writing status update: %v", err)
-			continue
+		if allocsPending != lastPending {
+			lastPending = allocsPending
+			statusClient.write("booting", float64(allocsPending))
+		}
+		if allocsRunning != lastRunning {
+			lastRunning = allocsRunning
+			statusClient.write("running", float64(allocsRunning))
 		}
 	}
 
@@ -224,6 +229,29 @@ func handleTeardown() int {
 	}
 
 	return 0
+}
+
+type statusClient struct {
+	conn net.Conn
+}
+
+func newStatusClient(addr string) (*statusClient, error) {
+	// Connect to the status server
+	conn, err := net.Dial("tcp", addr)
+	if err != nil {
+		log.Fatalf("failed contacting status server: %v", err)
+	}
+	return &statusClient{conn}, nil
+}
+
+func (c *statusClient) write(key string, val float64) error {
+	payload := fmt.Sprintf("%s:%f\n", key, val)
+	_, err := c.conn.Write([]byte(payload))
+	return err
+}
+
+func (c *statusClient) close() {
+	c.conn.Close()
 }
 
 func convertStructJob(in *structs.Job) (*api.Job, error) {
