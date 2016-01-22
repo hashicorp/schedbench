@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"log"
 	"net"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type statusServer struct {
@@ -39,39 +41,52 @@ func (s *statusServer) run(updateCh chan<- *statusUpdate) {
 	if err != nil {
 		log.Fatalf("failed to accept connection: %v", err)
 	}
+	reader := bufio.NewReader(conn)
 
 	for {
-		// Read the next packet
-		var payload []byte
-		if _, err := conn.Read(payload); err != nil {
+		// Read the next payload
+		payload, err := reader.ReadString('\n')
+		if err != nil {
 			log.Fatalf("failed reading payload: %v", err)
 		}
 
+		// Strip the newline
+		payload = payload[:len(payload)-1]
+
 		// Parse the payload parts
-		parts := strings.Split(string(payload), ":")
-		if len(parts) != 2 {
+		parts := strings.Split(payload, "|")
+		if len(parts) != 3 {
 			log.Printf("invalid metric payload: %v", payload)
 			continue
 		}
 
-		// Parse the metric
-		val, err := strconv.ParseFloat(parts[1], 10)
+		// Parse the timestamp
+		ts, err := time.Parse(time.RFC3339, parts[0])
 		if err != nil {
-			log.Printf("failed parsing metric value: %v", payload)
+			log.Printf("failed parsing timestamp %q: %v", payload, err)
+			continue
+		}
+
+		// Parse the metric
+		val, err := strconv.ParseFloat(parts[2], 64)
+		if err != nil {
+			log.Printf("failed parsing metric value %q: %v", payload, err)
 			continue
 		}
 
 		// Send the update
 		updateCh <- &statusUpdate{
-			key: parts[0],
-			val: val,
+			key:  parts[1],
+			val:  val,
+			time: ts,
 		}
 	}
 }
 
 type statusUpdate struct {
-	key string
-	val float64
+	key  string
+	val  float64
+	time time.Time
 }
 
 func main() {

@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"./status"
 	"github.com/hashicorp/nomad/api"
@@ -164,6 +165,9 @@ func handleStatus() int {
 			continue
 		}
 
+		// Record the timestamp as close to the query as possible
+		ts := time.Now().UTC()
+
 		// Check the index
 		if qm.LastIndex == index {
 			continue
@@ -185,15 +189,15 @@ func handleStatus() int {
 		// Write the metrics, if there were changes.
 		if allocsTotal != lastTotal {
 			lastTotal = allocsTotal
-			statusClient.Set("placed", float64(allocsTotal))
+			statusClient.Set("placed", float64(allocsTotal), ts)
 		}
 		if allocsPending != lastPending {
 			lastPending = allocsPending
-			statusClient.Set("booting", float64(allocsPending))
+			statusClient.Set("booting", float64(allocsPending), ts)
 		}
 		if allocsRunning != lastRunning {
 			lastRunning = allocsRunning
-			statusClient.Set("running", float64(allocsRunning))
+			statusClient.Set("running", float64(allocsRunning), ts)
 		}
 	}
 
