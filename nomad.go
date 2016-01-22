@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"net"
 	"os"
 	"path/filepath"
 	"strconv"
 
+	"./status"
 	"github.com/hashicorp/nomad/api"
 	"github.com/hashicorp/nomad/jobspec"
 	"github.com/hashicorp/nomad/nomad/structs"
@@ -140,11 +140,11 @@ func handleStatus() int {
 	allocs := client.Allocations()
 
 	// Get the status client
-	statusClient, err := newStatusClient(os.Args[2])
+	statusClient, err := status.NewClient(os.Args[2])
 	if err != nil {
 		log.Fatalf("failed contacting status server: %v", err)
 	}
-	defer statusClient.close()
+	defer statusClient.Close()
 
 	// Wait loop for allocation statuses
 	var lastPending, lastRunning, lastTotal int64
@@ -185,15 +185,15 @@ func handleStatus() int {
 		// Write the metrics, if there were changes.
 		if allocsTotal != lastTotal {
 			lastTotal = allocsTotal
-			statusClient.write("placed", float64(allocsTotal))
+			statusClient.Set("placed", float64(allocsTotal))
 		}
 		if allocsPending != lastPending {
 			lastPending = allocsPending
-			statusClient.write("booting", float64(allocsPending))
+			statusClient.Set("booting", float64(allocsPending))
 		}
 		if allocsRunning != lastRunning {
 			lastRunning = allocsRunning
-			statusClient.write("running", float64(allocsRunning))
+			statusClient.Set("running", float64(allocsRunning))
 		}
 	}
 
@@ -229,29 +229,6 @@ func handleTeardown() int {
 	}
 
 	return 0
-}
-
-type statusClient struct {
-	conn net.Conn
-}
-
-func newStatusClient(addr string) (*statusClient, error) {
-	// Connect to the status server
-	conn, err := net.Dial("tcp", addr)
-	if err != nil {
-		log.Fatalf("failed contacting status server: %v", err)
-	}
-	return &statusClient{conn}, nil
-}
-
-func (c *statusClient) write(key string, val float64) error {
-	payload := fmt.Sprintf("%s:%f\n", key, val)
-	_, err := c.conn.Write([]byte(payload))
-	return err
-}
-
-func (c *statusClient) close() {
-	c.conn.Close()
 }
 
 func convertStructJob(in *structs.Job) (*api.Job, error) {
