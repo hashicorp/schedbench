@@ -20,7 +20,7 @@ func NewClient(addr string) (*Client, error) {
 }
 
 func (c *Client) Set(key string, val float64, ts time.Time) error {
-	payload := fmt.Sprintf("%s|%s|%f\n", ts.Format(time.RFC3339), key, val)
+	payload := fmt.Sprintf("%d|%s|%f\n", ts.UnixNano(), key, val)
 	_, err := c.conn.Write([]byte(payload))
 	return err
 }

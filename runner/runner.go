@@ -8,11 +8,11 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 )
 
 type statusServer struct {
 	listener   net.Listener
+	updateCh   chan *statusUpdate
 	shutdownCh chan struct{}
 }
 
@@ -26,6 +26,7 @@ func newStatusServer(port int) (string, *statusServer, error) {
 	// Create and return the server
 	server := &statusServer{
 		listener:   list,
+		updateCh:   make(chan *statusUpdate, 128),
 		shutdownCh: make(chan struct{}),
 	}
 	return list.Addr().String(), server, nil
@@ -36,18 +37,24 @@ func (s *statusServer) shutdown() {
 }
 
 func (s *statusServer) run(updateCh chan<- *statusUpdate) {
-	// Wait for a connection
-	conn, err := s.listener.Accept()
-	if err != nil {
-		log.Fatalf("failed to accept connection: %v", err)
+	for {
+		// Wait for a connection
+		conn, err := s.listener.Accept()
+		if err != nil {
+			log.Fatalf("failed to accept connection: %v", err)
+		}
+		go s.handleConn(conn)
 	}
-	reader := bufio.NewReader(conn)
+}
 
+func (s *statusServer) handleConn(conn net.Conn) {
+	reader := bufio.NewReader(conn)
 	for {
 		// Read the next payload
 		payload, err := reader.ReadString('\n')
 		if err != nil {
-			log.Fatalf("failed reading payload: %v", err)
+			log.Printf("failed reading payload: %v", err)
+			return
 		}
 
 		// Strip the newline
@@ -61,24 +68,29 @@ func (s *statusServer) run(updateCh chan<- *statusUpdate) {
 		}
 
 		// Parse the timestamp
-		ts, err := time.Parse(time.RFC3339, parts[0])
+		ts, err := strconv.ParseInt(parts[0], 10, 64)
 		if err != nil {
-			log.Printf("failed parsing timestamp %q: %v", payload, err)
+			log.Printf("failed parsing timestamp in %q: %v", payload, err)
 			continue
 		}
 
 		// Parse the metric
 		val, err := strconv.ParseFloat(parts[2], 64)
 		if err != nil {
-			log.Printf("failed parsing metric value %q: %v", payload, err)
+			log.Printf("failed parsing metric value in %q: %v", payload, err)
 			continue
 		}
 
 		// Send the update
-		updateCh <- &statusUpdate{
+		update := &statusUpdate{
 			key:  parts[1],
 			val:  val,
 			time: ts,
+		}
+		select {
+		case s.updateCh <- update:
+		default:
+			log.Printf("update channel full! dropping update: %v", update)
 		}
 	}
 }
@@ -86,7 +98,7 @@ func (s *statusServer) run(updateCh chan<- *statusUpdate) {
 type statusUpdate struct {
 	key  string
 	val  float64
-	time time.Time
+	time int64
 }
 
 func main() {
@@ -113,7 +125,7 @@ func main() {
 	// Wait for updates
 	for {
 		select {
-		case update := <-updateCh:
+		case update := <-srv.updateCh:
 			log.Printf("%#v", update)
 		}
 	}
