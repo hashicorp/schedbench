@@ -4,14 +4,12 @@ import (
 	"bytes"
 	"encoding/gob"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
-	"path/filepath"
 	"strconv"
 	"time"
 
-	"./status"
+	"../../status"
 	"github.com/hashicorp/nomad/api"
 	"github.com/hashicorp/nomad/jobspec"
 	"github.com/hashicorp/nomad/nomad/structs"
@@ -46,58 +44,51 @@ func main() {
 
 func handleSetup() int {
 	// Check the args
-	if len(os.Args) != 4 {
-		log.Fatalln("usage: nomad-bench setup <num jobs> <num containers>")
+	if len(os.Args) != 2 {
+		log.Fatalln("usage: nomad-bench setup")
 	}
 
 	// Parse the inputs
 	var err error
 	var numContainers int
-	if numContainers, err = strconv.Atoi(os.Args[3]); err != nil {
-		log.Fatalln("number of containers must be numeric")
+
+	v := os.Getenv("NOMAD_NUM_CONTAINERS")
+	if numContainers, err = strconv.Atoi(v); err != nil {
+		log.Fatalln("NOMAD_NUM_CONTAINERS must be numeric")
 	}
 
-	// Create the temp dir
-	dir, err := ioutil.TempDir("", "nomad-bench")
-	if err != nil {
-		log.Fatalf("failed creating temp dir: %v", err)
-	}
-
-	// Write the job file to the temp dir
-	fh, err := os.Create(filepath.Join(dir, "job.nomad"))
+	// Create the job file
+	fh, err := os.Create("job.nomad")
 	if err != nil {
 		log.Fatalf("failed creating job file: %v", err)
 	}
 	defer fh.Close()
 
+	// Write the job contents
 	jobContent := fmt.Sprintf(jobTemplate, numContainers)
 	if _, err := fh.WriteString(jobContent); err != nil {
 		log.Fatalf("failed writing to job file: %v", err)
 	}
-
-	// Return the temp dir path
-	fmt.Fprintln(os.Stdout, dir)
 	return 0
 }
 
 func handleRun() int {
 	// Check the args
-	if len(os.Args) != 5 {
-		log.Fatalln("usage: nomad-bench run <dir> <num jobs> <num containers>")
+	if len(os.Args) != 2 {
+		log.Fatalln("usage: nomad-bench run")
 	}
 
 	// Parse the inputs
 	var err error
 	var numJobs int
-	if numJobs, err = strconv.Atoi(os.Args[3]); err != nil {
-		log.Fatalln("number of jobs must be numeric")
+
+	v := os.Getenv("NOMAD_NUM_JOBS")
+	if numJobs, err = strconv.Atoi(v); err != nil {
+		log.Fatalln("NOMAD_NUM_JOBS must be numeric")
 	}
 
-	// Get the job file path
-	jobFile := filepath.Join(os.Args[2], "job.nomad")
-
 	// Parse the job file
-	job, err := jobspec.ParseFile(jobFile)
+	job, err := jobspec.ParseFile("job.nomad")
 	if err != nil {
 		log.Fatalf("failed parsing job file: %v", err)
 	}
@@ -257,6 +248,7 @@ job "bench" {
 		count = %d
 
 		restart {
+			mode = "fail"
 			attempts = 0
 		}
 

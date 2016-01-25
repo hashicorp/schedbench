@@ -3,11 +3,14 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type statusServer struct {
@@ -29,7 +32,8 @@ func newStatusServer(port int) (string, *statusServer, error) {
 		updateCh:   make(chan *statusUpdate, 128),
 		shutdownCh: make(chan struct{}),
 	}
-	return list.Addr().String(), server, nil
+	//return list.Addr().String(), server, nil
+	return "127.0.0.1:9000", server, nil
 }
 
 func (s *statusServer) shutdown() {
@@ -104,29 +108,89 @@ type statusUpdate struct {
 func main() {
 	// Check the args
 	if len(os.Args) != 2 {
-		log.Fatalln("port number required")
+		log.Fatalln("usage: c1m <path>")
 	}
-	port, err := strconv.Atoi(os.Args[1])
+	file := os.Args[1]
+
+	// Make sure the script exists and is executable
+	fi, err := os.Stat(file)
 	if err != nil {
-		log.Fatalln("failed parsing port number: %v", err)
+		log.Fatalf("failed to stat %q: %v", file, err)
+	}
+	if fi.Mode().Perm()|0111 == 0 {
+		log.Fatalf("file %q is not executable", file)
+	}
+
+	// Create the temp dir
+	dir, err := ioutil.TempDir("", "bench")
+	if err != nil {
+		log.Fatalf("failed creating temp dir: %v", err)
+	}
+	defer os.RemoveAll(dir)
+
+	// Perform setup
+	cmd := exec.Command(file, "setup")
+	cmd.Dir = dir
+	if err := cmd.Run(); err != nil {
+		log.Fatalf("failed running setup: %v", err)
 	}
 
 	// Create the server
-	addr, srv, err := newStatusServer(int(port))
+	addr, srv, err := newStatusServer(9000)
 	if err != nil {
 		log.Fatalf("failed starting server: %v", err)
 	}
 	log.Printf("status server started on %q", addr)
 
-	// Start running
+	// Call the status submitter
+	cmd = exec.Command(file, "status", addr)
+	cmd.Dir = dir
+	if err := cmd.Start(); err != nil {
+		log.Fatalf("failed to run status submitter: %v", err)
+	}
+
+	// Start listening for updates
 	updateCh := make(chan *statusUpdate, 128)
 	go srv.run(updateCh)
 
-	// Wait for updates
+	// Start the update handler
+	go handleUpdates(updateCh)
+
+	// Mark start of the test
+	updateCh <- &statusUpdate{
+		key:  "started",
+		time: time.Now().UnixNano(),
+	}
+
+	// Start running the benchmark
+	cmd = exec.Command(file, "run")
+	cmd.Dir = dir
+	if err := cmd.Run(); err != nil {
+		log.Fatalf("failed running benchmark: %v", err)
+	}
+
+	for {
+	}
+}
+
+func handleUpdates(updateCh <-chan *statusUpdate) {
+	var placed, booting, running float64
+	var start int64
 	for {
 		select {
-		case update := <-srv.updateCh:
-			log.Printf("%#v", update)
+		case update := <-updateCh:
+			switch update.key {
+			case "started":
+				start = update.time
+			case "placed":
+				placed = update.val
+			case "booting":
+				booting = update.val
+			case "running":
+				running = update.val
+			}
+			elapsed := update.time - start
+			fmt.Printf("%d,%f,%f,%f\n", elapsed, placed, booting, running)
 		}
 	}
 }
