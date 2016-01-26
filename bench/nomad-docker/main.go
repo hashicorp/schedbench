@@ -16,7 +16,7 @@ import (
 func main() {
 	// Check the args
 	if len(os.Args) != 2 {
-		log.Fatalln("usage: nomad-bench <command>")
+		log.Fatalln("usage: nomad-docker <command>")
 	}
 
 	// Switch on the command
@@ -151,7 +151,7 @@ func handleStatus() int {
 		}
 		if allocsPending != lastPending {
 			lastPending = allocsPending
-			fmt.Fprintf(os.Stdout, "booting|%f\n", float64(allocsPending))
+			fmt.Fprintf(os.Stdout, "pending|%f\n", float64(allocsPending))
 		}
 		if allocsRunning != lastRunning {
 			lastRunning = allocsRunning

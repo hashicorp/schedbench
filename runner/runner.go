@@ -73,7 +73,7 @@ func (s *statusServer) run() {
 }
 
 func (s *statusServer) handleUpdates(doneCh <-chan struct{}) {
-	var placed, booting, running float64
+	var placed, pending, running float64
 
 	// Record the start time
 	start := time.Now()
@@ -87,7 +87,7 @@ func (s *statusServer) handleUpdates(doneCh <-chan struct{}) {
 	log.Printf("results will be streamed to result.csv")
 
 	// Write the headers
-	if _, err := fmt.Fprintln(fh, "elapsed_ns,placed,booting,running"); err != nil {
+	if _, err := fmt.Fprintln(fh, "elapsed_ns,placed,pending,running"); err != nil {
 		log.Fatalf("failed writing headers: %v", err)
 	}
 
@@ -99,13 +99,13 @@ func (s *statusServer) handleUpdates(doneCh <-chan struct{}) {
 			switch update.key {
 			case "placed":
 				placed = update.val
-			case "booting":
-				booting = update.val
+			case "pending":
+				pending = update.val
 			case "running":
 				running = update.val
 			}
 			elapsed := now.Sub(start).Nanoseconds()
-			fmt.Fprintf(fh, "%d,%f,%f,%f\n", elapsed, placed, booting, running)
+			fmt.Fprintf(fh, "%d,%f,%f,%f\n", elapsed, placed, pending, running)
 
 		case <-doneCh:
 			return
