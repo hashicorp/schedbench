@@ -1,4 +1,3 @@
 .vagrant
-tests/
-bench-runner
+bin/
 result.csv
