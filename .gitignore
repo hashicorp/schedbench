@@ -1,3 +1,4 @@
 .vagrant
 nomad-bench
 bench-runner
+result.csv

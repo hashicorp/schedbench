@@ -163,11 +163,6 @@ func handleStatus() int {
 }
 
 func handleTeardown() int {
-	// Check the args
-	if len(os.Args) != 3 {
-		log.Fatalln("usage: nomad-bench teardown <dir>")
-	}
-
 	// Get the API client
 	client, err := api.NewClient(api.DefaultConfig())
 	if err != nil {
@@ -184,12 +179,6 @@ func handleTeardown() int {
 			log.Fatalf("failed deregistering job: %v", err)
 		}
 	}
-
-	// Nuke the dir
-	if err := os.RemoveAll(os.Args[2]); err != nil {
-		log.Fatalf("failed cleaning up temp dir: %v", err)
-	}
-
 	return 0
 }
 

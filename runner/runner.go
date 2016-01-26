@@ -86,6 +86,11 @@ func (s *statusServer) handleUpdates(doneCh <-chan struct{}) {
 	defer fh.Close()
 	log.Printf("results will be streamed to result.csv")
 
+	// Write the headers
+	if _, err := fmt.Fprintln(fh, "elapsed_ns,placed,booting,running"); err != nil {
+		log.Fatalf("failed writing headers: %v", err)
+	}
+
 	for {
 		select {
 		case update := <-s.updateCh:
@@ -144,6 +149,15 @@ func main() {
 	if out, err := setupCmd.CombinedOutput(); err != nil {
 		log.Fatalf("failed running setup: %v\nOutput: %s", err, string(out))
 	}
+
+	// Always run the teardown
+	defer func() {
+		teardownCmd := exec.Command(file, "teardown")
+		teardownCmd.Dir = dir
+		if out, err := teardownCmd.CombinedOutput(); err != nil {
+			log.Fatalf("failed running teardown: %v\nOutput: %s", err, string(out))
+		}
+	}()
 
 	// Create the status collector cmd
 	statusCmd := exec.Command(file, "status")
