@@ -7,24 +7,16 @@ import (
 	"log"
 	"os"
 	"strconv"
-	"time"
 
-	"../../status"
 	"github.com/hashicorp/nomad/api"
 	"github.com/hashicorp/nomad/jobspec"
 	"github.com/hashicorp/nomad/nomad/structs"
 )
 
-// Exec interface:
-//   setup(numJobs, numContainers int) string
-//   run(dir string, numJobs, numContainers int)
-//   status(addr string)
-//   teardown(dir string)
-
 func main() {
 	// Check the args
-	if len(os.Args) < 2 {
-		log.Fatalln("usage: nomad-bench <command> [args]")
+	if len(os.Args) != 2 {
+		log.Fatalln("usage: nomad-bench <command>")
 	}
 
 	// Switch on the command
@@ -43,11 +35,6 @@ func main() {
 }
 
 func handleSetup() int {
-	// Check the args
-	if len(os.Args) != 2 {
-		log.Fatalln("usage: nomad-bench setup")
-	}
-
 	// Parse the inputs
 	var err error
 	var numContainers int
@@ -73,11 +60,6 @@ func handleSetup() int {
 }
 
 func handleRun() int {
-	// Check the args
-	if len(os.Args) != 2 {
-		log.Fatalln("usage: nomad-bench run")
-	}
-
 	// Parse the inputs
 	var err error
 	var numJobs int
@@ -119,24 +101,12 @@ func handleRun() int {
 }
 
 func handleStatus() int {
-	// Check the args
-	if len(os.Args) != 3 {
-		log.Fatalln("usage: nomad-bench status <addr>")
-	}
-
 	// Get the API client
 	client, err := api.NewClient(api.DefaultConfig())
 	if err != nil {
 		log.Fatalf("failed creating nomad client: %v", err)
 	}
 	allocs := client.Allocations()
-
-	// Get the status client
-	statusClient, err := status.NewClient(os.Args[2])
-	if err != nil {
-		log.Fatalf("failed contacting status server: %v", err)
-	}
-	defer statusClient.Close()
 
 	// Wait loop for allocation statuses
 	var lastPending, lastRunning, lastTotal int64
@@ -155,9 +125,6 @@ func handleStatus() int {
 			log.Printf("failed querying allocations: %v", err)
 			continue
 		}
-
-		// Record the timestamp as close to the query as possible
-		ts := time.Now().UTC()
 
 		// Check the index
 		if qm.LastIndex == index {
@@ -180,15 +147,15 @@ func handleStatus() int {
 		// Write the metrics, if there were changes.
 		if allocsTotal != lastTotal {
 			lastTotal = allocsTotal
-			statusClient.Set("placed", float64(allocsTotal), ts)
+			fmt.Fprintf(os.Stdout, "placed|%f\n", float64(allocsTotal))
 		}
 		if allocsPending != lastPending {
 			lastPending = allocsPending
-			statusClient.Set("booting", float64(allocsPending), ts)
+			fmt.Fprintf(os.Stdout, "booting|%f\n", float64(allocsPending))
 		}
 		if allocsRunning != lastRunning {
 			lastRunning = allocsRunning
-			statusClient.Set("running", float64(allocsRunning), ts)
+			fmt.Fprintf(os.Stdout, "running|%f\n", float64(allocsRunning))
 		}
 	}
 
