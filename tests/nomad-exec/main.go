@@ -94,7 +94,7 @@ func handleRun() int {
 	// Submit the job the requested number of times
 	for i := 0; i < numJobs; i++ {
 		// Increment the job ID
-		apiJob.ID = fmt.Sprintf("job-%d", i)
+		apiJob.ID = fmt.Sprintf("bench-docker-%d", i)
 		if _, _, err := jobs.Register(apiJob, nil); err != nil {
 			log.Fatalf("failed registering jobs: %v", err)
 		}
