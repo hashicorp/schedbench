@@ -183,7 +183,8 @@ func main() {
 		log.Fatalf("failed running benchmark: %v\nOutput: %s", err, string(out))
 	}
 
-	// TODO: this just sleeps forever...
-	for {
+	// Wait for the status command to return
+	if err := statusCmd.Wait(); err != nil {
+		log.Fatalf("status command got error: %v", err)
 	}
 }

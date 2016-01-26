@@ -13,11 +13,25 @@ import (
 	"github.com/hashicorp/nomad/nomad/structs"
 )
 
+var numContainers, numJobs, totalContainers int
+
 func main() {
 	// Check the args
 	if len(os.Args) != 2 {
 		log.Fatalln("usage: nomad-docker <command>")
 	}
+
+	// Parse the env vars into globals
+	var err error
+	v := os.Getenv("NOMAD_NUM_CONTAINERS")
+	if numContainers, err = strconv.Atoi(v); err != nil {
+		log.Fatalln("NOMAD_NUM_CONTAINERS must be numeric")
+	}
+	v = os.Getenv("NOMAD_NUM_JOBS")
+	if numJobs, err = strconv.Atoi(v); err != nil {
+		log.Fatalln("NOMAD_NUM_JOBS must be numeric")
+	}
+	totalContainers = numContainers * numJobs
 
 	// Switch on the command
 	switch os.Args[1] {
@@ -35,15 +49,6 @@ func main() {
 }
 
 func handleSetup() int {
-	// Parse the inputs
-	var err error
-	var numContainers int
-
-	v := os.Getenv("NOMAD_NUM_CONTAINERS")
-	if numContainers, err = strconv.Atoi(v); err != nil {
-		log.Fatalln("NOMAD_NUM_CONTAINERS must be numeric")
-	}
-
 	// Create the job file
 	fh, err := os.Create("job.nomad")
 	if err != nil {
@@ -60,15 +65,6 @@ func handleSetup() int {
 }
 
 func handleRun() int {
-	// Parse the inputs
-	var err error
-	var numJobs int
-
-	v := os.Getenv("NOMAD_NUM_JOBS")
-	if numJobs, err = strconv.Atoi(v); err != nil {
-		log.Fatalln("NOMAD_NUM_JOBS must be numeric")
-	}
-
 	// Parse the job file
 	job, err := jobspec.ParseFile("job.nomad")
 	if err != nil {
@@ -133,9 +129,11 @@ func handleStatus() int {
 		index = qm.LastIndex
 
 		// Check the response
-		allocsTotal := int64(len(resp))
-		var allocsPending, allocsRunning int64
+		var allocsTotal, allocsPending, allocsRunning int64
 		for _, alloc := range resp {
+			if alloc.DesiredStatus == structs.AllocDesiredStatusRun {
+				allocsTotal++
+			}
 			switch alloc.ClientStatus {
 			case structs.AllocClientStatusPending:
 				allocsPending++
@@ -156,6 +154,11 @@ func handleStatus() int {
 		if allocsRunning != lastRunning {
 			lastRunning = allocsRunning
 			fmt.Fprintf(os.Stdout, "running|%f\n", float64(allocsRunning))
+		}
+
+		// Break out if all of our allocs are running
+		if allocsRunning == int64(totalContainers) {
+			break
 		}
 	}
 
