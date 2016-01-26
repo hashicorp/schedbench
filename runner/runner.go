@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -15,14 +14,14 @@ import (
 )
 
 type statusServer struct {
-	outStream  *bufio.Reader
+	outStream  *bufio.Scanner
 	updateCh   chan *statusUpdate
 	shutdownCh chan struct{}
 }
 
 func newStatusServer(outStream io.Reader) *statusServer {
 	return &statusServer{
-		outStream:  bufio.NewReader(outStream),
+		outStream:  bufio.NewScanner(outStream),
 		updateCh:   make(chan *statusUpdate, 128),
 		shutdownCh: make(chan struct{}),
 	}
@@ -33,26 +32,13 @@ func (s *statusServer) shutdown() {
 }
 
 func (s *statusServer) run() {
-	// Mark start of the test
-	s.updateCh <- &statusUpdate{
-		key: "started",
-	}
-
 	// Start the update parser
 	doneCh := make(chan struct{})
 	defer close(doneCh)
 	go s.handleUpdates(doneCh)
 
-	for {
-		// Read the next payload
-		payload, err := s.outStream.ReadString('\n')
-		if err != nil {
-			log.Printf("failed reading payload: %v", err)
-			return
-		}
-
-		// Strip the newline
-		payload = payload[:len(payload)-1]
+	for s.outStream.Scan() {
+		payload := s.outStream.Text()
 
 		// Parse the payload parts
 		parts := strings.Split(payload, "|")
@@ -70,7 +56,7 @@ func (s *statusServer) run() {
 
 		// Send the update
 		update := &statusUpdate{
-			key: parts[1],
+			key: parts[0],
 			val: val,
 		}
 		select {
@@ -79,11 +65,18 @@ func (s *statusServer) run() {
 			log.Printf("update channel full! dropping update: %v", update)
 		}
 	}
+
+	if err := s.outStream.Err(); err != nil {
+		log.Printf("failed reading payload: %v", err)
+		return
+	}
 }
 
 func (s *statusServer) handleUpdates(doneCh <-chan struct{}) {
 	var placed, booting, running float64
-	var start time.Time
+
+	// Record the start time
+	start := time.Now()
 
 	// Open the status file
 	fh, err := os.Create("result.csv")
@@ -91,6 +84,7 @@ func (s *statusServer) handleUpdates(doneCh <-chan struct{}) {
 		log.Fatalf("failed creating result file: %v", err)
 	}
 	defer fh.Close()
+	log.Printf("results will be streamed to result.csv")
 
 	for {
 		select {
@@ -98,10 +92,6 @@ func (s *statusServer) handleUpdates(doneCh <-chan struct{}) {
 			now := time.Now()
 
 			switch update.key {
-			case "started":
-				if start.IsZero() {
-					start = now
-				}
 			case "placed":
 				placed = update.val
 			case "booting":
@@ -149,21 +139,23 @@ func main() {
 	log.Printf("using temp dir: %s", dir)
 
 	// Perform setup
-	cmd := exec.Command(file, "setup")
-	cmd.Dir = dir
-	if out, err := cmd.CombinedOutput(); err != nil {
+	setupCmd := exec.Command(file, "setup")
+	setupCmd.Dir = dir
+	if out, err := setupCmd.CombinedOutput(); err != nil {
 		log.Fatalf("failed running setup: %v\nOutput: %s", err, string(out))
 	}
 
-	// Create the server
-	outBuf := new(bytes.Buffer)
-	srv := newStatusServer(outBuf)
+	// Create the status collector cmd
+	statusCmd := exec.Command(file, "status")
+	statusCmd.Dir = dir
+	outBuf, err := statusCmd.StdoutPipe()
+	if err != nil {
+		log.Fatalf("failed attaching stdout: %v", err)
+	}
 
-	// Call the status submitter
-	cmd = exec.Command(file, "status")
-	cmd.Dir = dir
-	cmd.Stdout = outBuf
-	if err := cmd.Start(); err != nil {
+	// Create the server and start running
+	srv := newStatusServer(outBuf)
+	if err := statusCmd.Start(); err != nil {
 		log.Fatalf("failed to run status submitter: %v", err)
 	}
 
@@ -171,9 +163,9 @@ func main() {
 	go srv.run()
 
 	// Start running the benchmark
-	cmd = exec.Command(file, "run")
-	cmd.Dir = dir
-	if out, err := cmd.CombinedOutput(); err != nil {
+	runCmd := exec.Command(file, "run")
+	runCmd.Dir = dir
+	if out, err := runCmd.CombinedOutput(); err != nil {
 		log.Fatalf("failed running benchmark: %v\nOutput: %s", err, string(out))
 	}
 
