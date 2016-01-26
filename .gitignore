@@ -1,4 +1,4 @@
 .vagrant
-nomad-docker
+tests/
 bench-runner
 result.csv
