@@ -18,7 +18,7 @@ var numContainers, numJobs, totalContainers int
 func main() {
 	// Check the args
 	if len(os.Args) != 2 {
-		log.Fatalln("usage: nomad-docker <command>")
+		log.Fatalln(usage)
 	}
 
 	// Parse the env vars into globals
@@ -209,13 +209,37 @@ job "bench-docker" {
 
 			config {
 				image = "redis:latest"
+				port_map {
+					redis = 6379
+				}
 			}
 
 			resources {
 				cpu = 100
 				memory = 100
+				network {
+					port "redis" {}
+				}
 			}
 		}
 	}
 }
+`
+
+const usage = `
+NOTICE: This is a benchmark implementation binary and is not intended to be
+run directly. The full path to this binary should be passed to bench-runner.
+
+This benchmark is used to measure the performance of scheduling Docker
+containers against Nomad. The image "redis:latest" is used for the test,
+and a dynamic port is used for Redis to bind to.
+
+Configuration may be passed using environment variables to alter the
+function of this test. The supported parameters are:
+
+  NOMAD_NUM_CONTAINERS
+    The number of containers per-job to schedule.
+
+  NOMAD_NUM_JOBS
+    The number of jobs to submit.
 `
