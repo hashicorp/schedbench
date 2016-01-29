@@ -19,7 +19,7 @@ var numProcs, numJobs, totalProcs int
 func main() {
 	// Check the args
 	if len(os.Args) != 2 {
-		log.Fatalln("usage: nomad-exec <command>")
+		log.Fatalln("usage: nomad-raw-exec <command>")
 	}
 
 	// Parse the env vars into globals
@@ -200,7 +200,7 @@ func convertStructJob(in *structs.Job) (*api.Job, error) {
 }
 
 const jobTemplate = `
-job "bench-exec" {
+job "bench-raw-exec" {
 	datacenters = ["dc1"]
 
 	group "cache" {
@@ -212,7 +212,7 @@ job "bench-exec" {
 		}
 
 		task "redis" {
-			driver = "exec"
+			driver = "raw_exec"
 
 			config {
 				command = "redis-server"

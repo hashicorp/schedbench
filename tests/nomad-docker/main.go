@@ -87,7 +87,7 @@ func handleRun() int {
 	// Submit the job the requested number of times
 	for i := 0; i < numJobs; i++ {
 		// Increment the job ID
-		apiJob.ID = fmt.Sprintf("bench-exec-%d", i)
+		apiJob.ID = fmt.Sprintf("bench-docker-%d", i)
 		if _, _, err := jobs.Register(apiJob, nil); err != nil {
 			log.Fatalf("failed registering jobs: %v", err)
 		}
@@ -105,7 +105,7 @@ func handleStatus() int {
 	allocs := client.Allocations()
 
 	// Wait loop for allocation statuses
-	var lastPending, lastRunning, lastTotal int64
+	var lastRunning, lastTotal int64
 	var index uint64 = 1
 	for {
 		// Set up the args
@@ -129,15 +129,12 @@ func handleStatus() int {
 		index = qm.LastIndex
 
 		// Check the response
-		var allocsTotal, allocsPending, allocsRunning int64
+		var allocsTotal, allocsRunning int64
 		for _, alloc := range resp {
 			if alloc.DesiredStatus == structs.AllocDesiredStatusRun {
 				allocsTotal++
 			}
-			switch alloc.ClientStatus {
-			case structs.AllocClientStatusPending:
-				allocsPending++
-			case structs.AllocClientStatusRunning:
+			if alloc.ClientStatus == structs.AllocClientStatusRunning {
 				allocsRunning++
 			}
 		}
@@ -146,10 +143,6 @@ func handleStatus() int {
 		if allocsTotal != lastTotal {
 			lastTotal = allocsTotal
 			fmt.Fprintf(os.Stdout, "placed|%f\n", float64(allocsTotal))
-		}
-		if allocsPending != lastPending {
-			lastPending = allocsPending
-			fmt.Fprintf(os.Stdout, "pending|%f\n", float64(allocsPending))
 		}
 		if allocsRunning != lastRunning {
 			lastRunning = allocsRunning
