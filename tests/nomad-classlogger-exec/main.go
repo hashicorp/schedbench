@@ -216,10 +216,10 @@ job "bench-classlogger-exec" {
 
 			config {
 				command = "/usr/bin/classlogger"
-				args = ["--port", "$NOMAD_PORT_redis"]
 				env {
 					NODE_CLASS = "$node.class"
 					REDIS_ADDR = "redis.service.consul:6379"
+				}
 			}
 
 			resources {

@@ -14,5 +14,15 @@ Vagrant.configure(2) do |config|
     sudo unzip -d /usr/local/bin nomad*.zip
     sudo curl -sSL https://get.docker.com/ | sh
     sudo usermod -aG docker vagrant
+
+    cat > /tmp/nomad.hcl <<EOF
+client {
+  options = {
+    "driver.raw_exec.enable" = "1"
+    "docker.cleanup.container" = false
+  }
+}
+EOF
+    sudo nomad agent -dev -config /tmp/nomad.hcl 2>&1 >/tmp/nomad.log &
   SHELL
 end
