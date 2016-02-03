@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -106,7 +105,7 @@ func (s *statusServer) handleUpdates(doneCh <-chan struct{}) {
 			case "running":
 				running = update.val
 			}
-			elapsed := now.Sub(start).Nanoseconds() / 1e6
+			elapsed := now.Sub(start).Nanoseconds() / int64(time.Millisecond)
 			fmt.Fprintf(fh, "%d,%f,%f\n", elapsed, placed, running)
 
 		case <-doneCh:
@@ -126,44 +125,33 @@ func main() {
 	if len(os.Args) != 2 {
 		log.Fatalln("usage: bench-runner <path>")
 	}
-	file := os.Args[1]
+	path := os.Args[1]
 
 	// Make sure the script exists and is executable
-	fi, err := os.Stat(file)
+	fi, err := os.Stat(path)
 	if err != nil {
-		log.Fatalf("failed to stat %q: %v", file, err)
+		log.Fatalf("failed to stat %q: %v", path, err)
 	}
 	if fi.Mode().Perm()|0111 == 0 {
-		log.Fatalf("file %q is not executable", file)
+		log.Fatalf("file %q is not executable", path)
 	}
-
-	// Create the temp dir
-	dir, err := ioutil.TempDir("", "bench")
-	if err != nil {
-		log.Fatalf("failed creating temp dir: %v", err)
-	}
-	defer os.RemoveAll(dir)
-	log.Printf("using temp dir: %s", dir)
 
 	// Perform setup
-	setupCmd := exec.Command(file, "setup")
-	setupCmd.Dir = dir
+	setupCmd := exec.Command(path, "setup")
 	if out, err := setupCmd.CombinedOutput(); err != nil {
 		log.Fatalf("failed running setup: %v\nOutput: %s", err, string(out))
 	}
 
 	// Always run the teardown
 	defer func() {
-		teardownCmd := exec.Command(file, "teardown")
-		teardownCmd.Dir = dir
+		teardownCmd := exec.Command(path, "teardown")
 		if out, err := teardownCmd.CombinedOutput(); err != nil {
-			log.Fatalf("failed running teardown: %v\nOutput: %s", err, string(out))
+			log.Fatalf("failed teardown: %v\nOutput: %s", err, string(out))
 		}
 	}()
 
 	// Create the status collector cmd
-	statusCmd := exec.Command(file, "status")
-	statusCmd.Dir = dir
+	statusCmd := exec.Command(path, "status")
 	outBuf, err := statusCmd.StdoutPipe()
 	if err != nil {
 		log.Fatalf("failed attaching stdout: %v", err)
@@ -179,8 +167,7 @@ func main() {
 	go srv.run()
 
 	// Start running the benchmark
-	runCmd := exec.Command(file, "run")
-	runCmd.Dir = dir
+	runCmd := exec.Command(path, "run")
 	if out, err := runCmd.CombinedOutput(); err != nil {
 		log.Fatalf("failed running benchmark: %v\nOutput: %s", err, string(out))
 	}
