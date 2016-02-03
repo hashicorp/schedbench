@@ -212,5 +212,5 @@ To run this benchmark:
 
      An example use would look like this:
 
-       $ JOBSPEC=./job1.nomad JOBS=100 bench-runner nomad
+       $ JOBSPEC=./job1.nomad JOBS=100 bench-runner bench-nomad
 `
