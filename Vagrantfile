@@ -8,21 +8,47 @@ Vagrant.configure(2) do |config|
     v.vmx["numvcpus"] = "2"
   end
   config.vm.provision "shell", inline: <<-SHELL
+    # Base setup
     sudo apt-get update
-    sudo apt-get install -y unzip curl
-    wget https://releases.hashicorp.com/nomad/0.2.3/nomad_0.2.3_linux_amd64.zip
-    sudo unzip -d /usr/local/bin nomad*.zip
+    sudo apt-get install -y unzip curl git-core
+
+    # Setup Go
+    wget -O /tmp/go.tgz https://storage.googleapis.com/golang/go1.5.3.linux-amd64.tar.gz
+    sudo tar -C /usr/local -xf /tmp/go.tgz
+    echo "export GOPATH=/root/gopath" | sudo tee -a /root/.profile
+    echo "export PATH=$PATH:/usr/local/go/bin:/root/gopath/bin" | sudo tee -a /root/.profile
+
+    # Build Nomad
+    sudo -i go get -d github.com/hashicorp/nomad
+    sudo -i go build -o /usr/local/bin/nomad github.com/hashicorp/nomad
+
+    # Setup Docker
     sudo curl -sSL https://get.docker.com/ | sh
     sudo usermod -aG docker vagrant
 
+    # Setup Nomad Config
     cat > /tmp/nomad.hcl <<EOF
 client {
   options = {
     "driver.raw_exec.enable" = "1"
-    "docker.cleanup.container" = false
+    "docker.cleanup.container" = "false"
   }
 }
 EOF
-    sudo nomad agent -dev -config /tmp/nomad.hcl 2>&1 >/tmp/nomad.log &
+    sudo mv /tmp/nomad.hcl /usr/local/etc/nomad.hcl
+
+    # Setup Nomad Service
+    cat > /tmp/nomad.upstart <<EOF
+start on runlevel [2345]
+stop on runlevel [!2345]
+respawn
+script
+    exec /usr/local/bin/nomad agent -dev -config /usr/local/etc/nomad.hcl >> /var/log/nomad.log 2>&1
+end script
+EOF
+    sudo mv /tmp/nomad.upstart /etc/init/nomad.conf
+
+    # Start Nomad
+    sudo start nomad
   SHELL
 end
