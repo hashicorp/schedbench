@@ -27,9 +27,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("error connecting to redis: %v", err)
 	}
-	defer conn.Close()
 
-	if _, err := conn.Do("INCR", class); err != nil {
+	_, err = conn.Do("INCR", class)
+	conn.Close()
+	if err != nil {
 		log.Fatalf("error incrementing class count: %v", err)
 	}
 
