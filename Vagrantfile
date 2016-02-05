@@ -29,9 +29,10 @@ Vagrant.configure(2) do |config|
     # Setup Nomad Config
     cat > /tmp/nomad.hcl <<EOF
 client {
+  node_class = "foobarbaz"
   options = {
-    "driver.raw_exec.enable" = "1"
-    "docker.cleanup.container" = "false"
+    driver.raw_exec.enable = "1"
+    docker.cleanup.container = "false"
   }
 }
 EOF
@@ -50,5 +51,8 @@ EOF
 
     # Start Nomad
     sudo start nomad
+
+    # Get/start Redis
+    sudo apt-get -y install redis-server
   SHELL
 end
