@@ -39,9 +39,23 @@ func (s *statusServer) run() {
 	for s.outStream.Scan() {
 		payload := s.outStream.Text()
 
+		// Used to parse and store a timestamp if given
+		var ts int64
+		var err error
+
 		// Parse the payload parts
 		parts := strings.Split(payload, "|")
-		if len(parts) != 2 {
+		switch len(parts) {
+		case 2:
+			// Missing timestamp (will auto-generate)
+		case 3:
+			// Timestamp present, parse and use
+			ts, err = strconv.ParseInt(parts[2], 10, 64)
+			if err != nil {
+				log.Printf("failed parsing timestamp: %v", err)
+				continue
+			}
+		default:
 			log.Printf("invalid metric payload: %v", payload)
 			continue
 		}
@@ -55,8 +69,9 @@ func (s *statusServer) run() {
 
 		// Send the update
 		update := &statusUpdate{
-			key: parts[0],
-			val: val,
+			key:       parts[0],
+			val:       val,
+			timestamp: ts,
 		}
 		select {
 		case s.updateCh <- update:
@@ -75,7 +90,7 @@ func (s *statusServer) handleUpdates(doneCh <-chan struct{}) {
 	var placed, running float64
 
 	// Record the start time
-	start := time.Now()
+	start := time.Now().UnixNano()
 
 	// Open the status file
 	fh, err := os.Create("result.csv")
@@ -94,18 +109,27 @@ func (s *statusServer) handleUpdates(doneCh <-chan struct{}) {
 	for {
 		select {
 		case update := <-s.updateCh:
-			now := time.Now()
+			// Check if timestamp is present
+			ts := update.timestamp
+			if ts == 0 {
+				ts = time.Now().UnixNano()
+			}
 
+			// Switch on the key name
 			switch update.key {
 			case "start":
 				// Observe the start of the test
-				now, placed, running = start, 0, 0
+				ts, placed, running = start, 0, 0
 			case "placed":
 				placed = update.val
 			case "running":
 				running = update.val
 			}
-			elapsed := now.Sub(start).Nanoseconds() / int64(time.Millisecond)
+
+			// Compute elapsed time in milliseconds
+			elapsed := (ts - start) / int64(time.Millisecond)
+
+			// Log current values
 			fmt.Fprintf(fh, "%d,%f,%f\n", elapsed, placed, running)
 
 		case <-doneCh:
@@ -115,9 +139,9 @@ func (s *statusServer) handleUpdates(doneCh <-chan struct{}) {
 }
 
 type statusUpdate struct {
-	key  string
-	val  float64
-	time int64
+	key       string
+	val       float64
+	timestamp int64
 }
 
 func main() {
