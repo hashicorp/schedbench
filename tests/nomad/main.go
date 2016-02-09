@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sort"
 	"strconv"
 	"time"
 
@@ -15,7 +16,8 @@ import (
 )
 
 const (
-	interval = 5 * time.Minute
+	// pollInterval is how often the status command will poll for results.
+	pollInterval = 5 * time.Minute
 )
 
 var numJobs, totalProcs int
@@ -105,6 +107,13 @@ func handleStatus() int {
 	totalAllocs *= numJobs
 	minEvals := numJobs
 
+	// Determine the set of jobs we should track.
+	jobs := make(map[string]struct{})
+	for i := 0; i < numJobs; i++ {
+		// Increment the job ID
+		jobs[fmt.Sprintf("%s-%d", job.ID, i)] = struct{}{}
+	}
+
 	// Get the API client
 	client, err := api.NewClient(api.DefaultConfig())
 	if err != nil {
@@ -118,12 +127,12 @@ func handleStatus() int {
 		WaitIndex:  1,
 	}
 
-	// Wait for all the allocations to be complete.
+	// Wait for all the evals to be complete.
 	evals := make(map[string]*api.Evaluation, minEvals)
 	failedEvals := make(map[string]struct{})
 EVAL_POLL:
 	for {
-		time.Sleep(interval)
+		time.Sleep(pollInterval)
 
 		// Start the query
 		resp, qm, err := evalEndpoint.List(args)
@@ -139,14 +148,22 @@ EVAL_POLL:
 		}
 		args.WaitIndex = qm.LastIndex
 
+		// Filter out evaluations that aren't for the jobs we are tracking.
+		var filter []*api.Evaluation
+		for _, eval := range resp {
+			if _, ok := jobs[eval.JobID]; ok {
+				filter = append(filter, eval)
+			}
+		}
+
 		// Wait til all evals have gone through the scheduler.
-		if len(resp) < minEvals {
+		if len(filter) < minEvals {
 			continue
 		}
 
 		// Ensure that all the evals are terminal, otherwise new allocations
 		// could be made.
-		for _, eval := range resp {
+		for _, eval := range filter {
 			switch eval.Status {
 			case "failed":
 				failedEvals[eval.ID] = struct{}{}
@@ -163,12 +180,13 @@ EVAL_POLL:
 		break
 	}
 
-	// We now have all the evals, gather the allocations times.
+	// We now have all the evals, gather the allocations and placement times.
+	scheduleTimes := make(map[string]int64, totalAllocs)
 	startTimes := make(map[string]int64, totalAllocs)
 	failedAllocs := make(map[string]struct{})
 ALLOC_POLL:
 	for {
-		time.Sleep(interval)
+		time.Sleep(pollInterval)
 
 		for evalID := range evals {
 			// Start the query
@@ -180,6 +198,10 @@ ALLOC_POLL:
 			}
 
 			for _, alloc := range resp {
+				// Capture the schedule time.
+				scheduleTimes[alloc.ID] = alloc.CreateTime
+
+				// Ensure that they have started or have failed.
 				switch alloc.ClientStatus {
 				case "failed":
 					failedAllocs[alloc.ID] = struct{}{}
@@ -212,11 +234,41 @@ ALLOC_POLL:
 	if l := len(failedAllocs); l != 0 {
 		fmt.Fprintf(os.Stdout, "failed_allocs|%f\n", float64(l))
 	}
-	for _, time := range startTimes {
-		fmt.Fprintf(os.Stdout, "running|%f|%d\n", float64(1), time)
+	for time, count := range timeToCumCount(startTimes) {
+		fmt.Fprintf(os.Stdout, "running|%f|%d\n", float64(count), time)
+	}
+	for time, count := range timeToCumCount(scheduleTimes) {
+		fmt.Fprintf(os.Stdout, "placed|%f|%d\n", float64(count), time)
 	}
 
 	return 0
+}
+
+// timeToCumCount returns a mapping of time to cumulative counts
+// {foo: 10, bar: 20} -> {10: 1, 20:2}
+func timeToCumCount(in map[string]int64) map[int64]int64 {
+	out := make(map[int64]int64)
+	intermediate := make(map[int]int64)
+	for _, v := range in {
+		intermediate[int(v)] += 1
+	}
+
+	var times []int
+	for time := range intermediate {
+		times = append(times, time)
+	}
+
+	if len(times) == 0 {
+		return out
+	}
+
+	sort.Ints(times)
+	out[int64(times[0])] = int64(intermediate[times[0]])
+	for i := 1; i < len(times); i++ {
+		out[int64(times[i])] = int64(out[int64(times[i-1])] + intermediate[times[i]])
+	}
+
+	return out
 }
 
 func handleTeardown() int {

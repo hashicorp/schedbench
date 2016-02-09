@@ -114,7 +114,7 @@ func (s *statusServer) handleUpdates(doneCh <-chan struct{}) {
 			if _, ok := metrics[elapsed]; !ok {
 				metrics[elapsed] = make(map[string]float64)
 			}
-			metrics[elapsed][update.key] += update.val
+			metrics[elapsed][update.key] = update.val
 
 		case <-doneCh:
 			// Format and write the metrics to the result file.
