@@ -15,24 +15,29 @@ import (
 	"time"
 )
 
+// statusServer is responsible for consuming status information which is
+// output by a test implementation.
 type statusServer struct {
-	outStream  *bufio.Scanner
-	updateCh   chan *statusUpdate
-	shutdownCh chan struct{}
+	// The output stream. This is attached to the output from the test
+	// implementation and is used to scan line-by-line over it.
+	outStream *bufio.Scanner
+
+	// The updateCh is used to pass status data from the scanner to the
+	// result collector.
+	updateCh chan *statusUpdate
 }
 
+// newStatusServer makes a new statusServer and initializes the fields.
 func newStatusServer(outStream io.Reader) *statusServer {
 	return &statusServer{
-		outStream:  bufio.NewScanner(outStream),
-		updateCh:   make(chan *statusUpdate, 128),
-		shutdownCh: make(chan struct{}),
+		outStream: bufio.NewScanner(outStream),
+		updateCh:  make(chan *statusUpdate, 128),
 	}
 }
 
-func (s *statusServer) shutdown() {
-	close(s.shutdownCh)
-}
-
+// run is the main loop of the status server which is responsible for
+// scanning lines of output from a test, parsing it into a status update,
+// and sending it down to the update handler.
 func (s *statusServer) run() {
 	// Start the update parser
 	doneCh := make(chan struct{})
@@ -60,7 +65,7 @@ func (s *statusServer) run() {
 				continue
 			}
 		default:
-			log.Printf("invalid metric payload: %v", payload)
+			log.Printf("invalid metric payload: %q", payload)
 			continue
 		}
 
@@ -84,12 +89,14 @@ func (s *statusServer) run() {
 		}
 	}
 
+	// Check if we broke out due to an error
 	if err := s.outStream.Err(); err != nil {
 		log.Printf("failed reading payload: %v", err)
-		return
 	}
 }
 
+// handleUpdates is used to read updates off of the updateCh and populate them
+// into a time-indexed map. Blocks until the doneCh is closed.
 func (s *statusServer) handleUpdates(doneCh <-chan struct{}) {
 	// Used to store events and times
 	metrics := make(map[int64]map[string]float64)
@@ -111,6 +118,7 @@ func (s *statusServer) handleUpdates(doneCh <-chan struct{}) {
 			metrics[elapsed][update.key] = update.val
 
 		case <-doneCh:
+			// Format and write the metrics to the result file.
 			if err := writeResult(metrics); err != nil {
 				log.Fatalf("failed writing result: %v", err)
 			}
@@ -119,15 +127,16 @@ func (s *statusServer) handleUpdates(doneCh <-chan struct{}) {
 	}
 }
 
-// writeResult takes a mapping of metrics and writes them to a useful CSV
-// formatted file for consumption. This is the primary output vehicle for
-// the benchmark runner.
+// writeResult takes a time-indexed map of metrics and formats them into
+// a CSV format. The data is then flushed to a result.csv file in the
+// current directory.
 func writeResult(metrics map[int64]map[string]float64) error {
-	// Create the output buffer
+	// Create the output buffer and CSV writer.
 	buf := new(bytes.Buffer)
 	csvWriter := csv.NewWriter(buf)
 
-	// Get the names of the data fields
+	// Get the unique names of the data fields. These will be the names
+	// of the columns in the CSV output.
 	fieldsMap := make(map[string]struct{})
 	for _, events := range metrics {
 		for name, _ := range events {
@@ -196,10 +205,13 @@ func writeResult(metrics map[int64]map[string]float64) error {
 	return nil
 }
 
+// statusUpdate is used to hold a 3-tuple of key/value/timestamp. This is
+// used to ship a single measurement between the status reader and result
+// writer.
 type statusUpdate struct {
-	key       string
-	val       float64
-	timestamp int64
+	key       string  // The name of the metric.
+	val       float64 // The value of the measurement.
+	timestamp int64   // The (optional) timestamp.
 }
 
 func main() {
