@@ -6,11 +6,18 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sort"
 	"strconv"
+	"time"
 
 	"github.com/hashicorp/nomad/api"
 	"github.com/hashicorp/nomad/jobspec"
 	"github.com/hashicorp/nomad/nomad/structs"
+)
+
+const (
+	// pollInterval is how often the status command will poll for results.
+	pollInterval = 3 * time.Minute
 )
 
 var numJobs, totalProcs int
@@ -98,66 +105,174 @@ func handleStatus() int {
 		totalAllocs += (group.Count * len(group.Tasks))
 	}
 	totalAllocs *= numJobs
+	minEvals := numJobs
+
+	// Determine the set of jobs we should track.
+	jobs := make(map[string]struct{})
+	for i := 0; i < numJobs; i++ {
+		// Increment the job ID
+		jobs[fmt.Sprintf("%s-%d", job.ID, i)] = struct{}{}
+	}
 
 	// Get the API client
 	client, err := api.NewClient(api.DefaultConfig())
 	if err != nil {
 		log.Fatalf("failed creating nomad client: %v", err)
 	}
-	allocs := client.Allocations()
+	evalEndpoint := client.Evaluations()
 
-	// Wait loop for allocation statuses
-	var lastRunning, lastTotal int64
-	var index uint64 = 1
+	// Set up the args
+	args := &api.QueryOptions{
+		AllowStale: true,
+		WaitIndex:  1,
+	}
+
+	// Wait for all the evals to be complete.
+	evals := make(map[string]*api.Evaluation, minEvals)
+	failedEvals := make(map[string]struct{})
+EVAL_POLL:
 	for {
-		// Set up the args
-		args := &api.QueryOptions{
-			AllowStale: true,
-			WaitIndex:  index,
-		}
+		time.Sleep(pollInterval)
 
 		// Start the query
-		resp, qm, err := allocs.List(args)
+		resp, qm, err := evalEndpoint.List(args)
 		if err != nil {
 			// Only log and continue to skip minor errors
-			log.Printf("failed querying allocations: %v", err)
+			log.Printf("failed querying evals: %v", err)
 			continue
 		}
 
 		// Check the index
-		if qm.LastIndex == index {
+		if qm.LastIndex == args.WaitIndex {
 			continue
 		}
-		index = qm.LastIndex
+		args.WaitIndex = qm.LastIndex
 
-		// Check the response
-		var allocsTotal, allocsRunning int64
-		for _, alloc := range resp {
-			if alloc.DesiredStatus == structs.AllocDesiredStatusRun {
-				allocsTotal++
-			}
-			if alloc.ClientStatus == structs.AllocClientStatusRunning {
-				allocsRunning++
+		// Filter out evaluations that aren't for the jobs we are tracking.
+		var filter []*api.Evaluation
+		for _, eval := range resp {
+			if _, ok := jobs[eval.JobID]; ok {
+				filter = append(filter, eval)
 			}
 		}
 
-		// Write the metrics, if there were changes.
-		if allocsTotal != lastTotal {
-			lastTotal = allocsTotal
-			fmt.Fprintf(os.Stdout, "placed|%f\n", float64(allocsTotal))
-		}
-		if allocsRunning != lastRunning {
-			lastRunning = allocsRunning
-			fmt.Fprintf(os.Stdout, "running|%f\n", float64(allocsRunning))
+		// Wait til all evals have gone through the scheduler.
+		if len(filter) < minEvals {
+			continue
 		}
 
-		// Break out if all of our allocs are running
-		if allocsRunning == int64(totalAllocs) {
-			break
+		// Ensure that all the evals are terminal, otherwise new allocations
+		// could be made.
+		for _, eval := range filter {
+			switch eval.Status {
+			case "failed":
+				failedEvals[eval.ID] = struct{}{}
+				continue EVAL_POLL
+			case "complete":
+				evals[eval.ID] = eval
+			case "canceled":
+				// Do nothing since it was a redundant eval.
+			default:
+				continue EVAL_POLL
+			}
 		}
+
+		break
+	}
+
+	// We now have all the evals, gather the allocations and placement times.
+	scheduleTimes := make(map[string]int64, totalAllocs)
+	startTimes := make(map[string]int64, totalAllocs)
+	failedAllocs := make(map[string]struct{})
+	first := true
+ALLOC_POLL:
+	for {
+		if !first {
+			time.Sleep(pollInterval)
+		}
+		first = false
+
+		for evalID := range evals {
+			// Start the query
+			resp, _, err := evalEndpoint.Allocations(evalID, args)
+			if err != nil {
+				// Only log and continue to skip minor errors
+				log.Printf("failed querying allocations: %v", err)
+				continue
+			}
+
+			for _, alloc := range resp {
+				// Capture the schedule time.
+				scheduleTimes[alloc.ID] = alloc.CreateTime
+
+				// Ensure that they have started or have failed.
+				switch alloc.ClientStatus {
+				case "failed":
+					failedAllocs[alloc.ID] = struct{}{}
+					continue
+				case "pending":
+					continue ALLOC_POLL
+				}
+
+				// Detect the start time.
+				for task, state := range alloc.TaskStates {
+					if state.State == "pending" || len(state.Events) == 0 {
+						continue ALLOC_POLL
+					}
+
+					// Get the first event.
+					startEvent := state.Events[0]
+					time := startEvent.Time
+					startTimes[fmt.Sprintf("%v-%v", alloc.ID, task)] = time
+				}
+			}
+		}
+
+		break
+	}
+
+	// Print the results.
+	if l := len(failedEvals); l != 0 {
+		fmt.Fprintf(os.Stdout, "failed_evals|%f\n", float64(l))
+	}
+	if l := len(failedAllocs); l != 0 {
+		fmt.Fprintf(os.Stdout, "failed_allocs|%f\n", float64(l))
+	}
+	for time, count := range timeToCumCount(startTimes) {
+		fmt.Fprintf(os.Stdout, "running|%f|%d\n", float64(count), time)
+	}
+	for time, count := range timeToCumCount(scheduleTimes) {
+		fmt.Fprintf(os.Stdout, "placed|%f|%d\n", float64(count), time)
 	}
 
 	return 0
+}
+
+// timeToCumCount returns a mapping of time to cumulative counts
+// {foo: 10, bar: 20} -> {10: 1, 20:2}
+func timeToCumCount(in map[string]int64) map[int64]int64 {
+	out := make(map[int64]int64)
+	intermediate := make(map[int]int64)
+	for _, v := range in {
+		intermediate[int(v)] += 1
+	}
+
+	var times []int
+	for time := range intermediate {
+		times = append(times, time)
+	}
+
+	if len(times) == 0 {
+		return out
+	}
+
+	sort.Ints(times)
+	out[int64(times[0])] = int64(intermediate[times[0]])
+	for i := 1; i < len(times); i++ {
+		out[int64(times[i])] = int64(out[int64(times[i-1])] + intermediate[times[i]])
+	}
+
+	return out
 }
 
 func handleTeardown() int {
