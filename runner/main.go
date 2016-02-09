@@ -50,6 +50,7 @@ func (s *statusServer) run() {
 		switch len(parts) {
 		case 2:
 			// Missing timestamp (will auto-generate)
+			ts = time.Now().UnixNano()
 		case 3:
 			// Timestamp present, parse and use
 			ts, err = strconv.ParseInt(parts[2], 10, 64)
@@ -92,7 +93,7 @@ func (s *statusServer) handleUpdates(doneCh <-chan struct{}) {
 	// Used to store events and times
 	metrics := make(map[int64]map[string]float64)
 
-	// Record the start time
+	// Record the start time and start the clock with 0 running
 	start := time.Now().UnixNano()
 	metrics[0] = map[string]float64{
 		"running": 0,
@@ -101,14 +102,8 @@ func (s *statusServer) handleUpdates(doneCh <-chan struct{}) {
 	for {
 		select {
 		case update := <-s.updateCh:
-			// Check if timestamp is present
-			ts := update.timestamp
-			if ts == 0 {
-				ts = time.Now().UnixNano()
-			}
-
 			// Compute elapsed time and log the value away
-			elapsed := ts - start
+			elapsed := update.timestamp - start
 			if _, ok := metrics[elapsed]; !ok {
 				metrics[elapsed] = make(map[string]float64)
 			}
@@ -123,25 +118,14 @@ func (s *statusServer) handleUpdates(doneCh <-chan struct{}) {
 	}
 }
 
-type Int64Sort []int64
-
-func (s Int64Sort) Len() int {
-	return len(s)
-}
-
-func (s Int64Sort) Less(a, b int) bool {
-	return s[a] < s[b]
-}
-
-func (s Int64Sort) Swap(a, b int) {
-	s[a], s[b] = s[b], s[a]
-}
-
+// writeResult takes a mapping of metrics and writes them to a useful CSV
+// formatted file for consumption. This is the primary output vehicle for
+// the benchmark runner.
 func writeResult(metrics map[int64]map[string]float64) error {
 	// Create the output buffer
 	buf := new(bytes.Buffer)
 
-	// Write the field headers
+	// Get the names of the data fields
 	fieldsMap := make(map[string]struct{})
 	for _, events := range metrics {
 		for name, _ := range events {
@@ -153,13 +137,16 @@ func writeResult(metrics map[int64]map[string]float64) error {
 		fields = append(fields, field)
 	}
 	sort.Strings(fields)
+
+	// Write the field names as a header row.
 	fmt.Fprint(buf, "elapsed_ms,")
 	fmt.Fprintln(buf, strings.Join(fields, ","))
 
-	// Used to record the last values as we iterate
+	// Used to record the last values as we iterate, making it possible to fill
+	// in all known data fields at each known timestamp.
 	last := make(map[string]float64, len(fields))
 
-	// Write the values
+	// Sort events by timestamp
 	var times []int64
 	for time, _ := range metrics {
 		times = append(times, time)
@@ -180,10 +167,10 @@ func writeResult(metrics map[int64]map[string]float64) error {
 			// Flush the float values to the buffer in order
 			fmt.Fprintf(buf, "%f,", last[field])
 		}
-		buf.WriteString("\n")
+		buf.WriteString("\n") // End of CSV line
 	}
 
-	// Write the result to the file
+	// Copy the output buffer into a result file.
 	fh, err := os.Create("result.csv")
 	if err != nil {
 		return fmt.Errorf("failed creating result file: %v", err)
@@ -259,4 +246,19 @@ func main() {
 	if err := statusCmd.Wait(); err != nil {
 		log.Fatalf("status command got error: %v", err)
 	}
+}
+
+// Int64Sort is used to sort slices of int64 numbers
+type Int64Sort []int64
+
+func (s Int64Sort) Len() int {
+	return len(s)
+}
+
+func (s Int64Sort) Less(a, b int) bool {
+	return s[a] < s[b]
+}
+
+func (s Int64Sort) Swap(a, b int) {
+	s[a], s[b] = s[b], s[a]
 }
