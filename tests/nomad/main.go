@@ -252,12 +252,12 @@ ALLOC_POLL:
 // {foo: 10, bar: 20} -> {10: 1, 20:2}
 func timeToCumCount(in map[string]int64) map[int64]int64 {
 	out := make(map[int64]int64)
-	intermediate := make(map[int]int64)
+	intermediate := make(map[int64]int64)
 	for _, v := range in {
-		intermediate[int(v)] += 1
+		intermediate[v] += 1
 	}
 
-	var times []int
+	var times []int64
 	for time := range intermediate {
 		times = append(times, time)
 	}
@@ -266,10 +266,10 @@ func timeToCumCount(in map[string]int64) map[int64]int64 {
 		return out
 	}
 
-	sort.Ints(times)
-	out[int64(times[0])] = int64(intermediate[times[0]])
+	sort.Sort(Int64Sort(times))
+	out[times[0]] = intermediate[times[0]]
 	for i := 1; i < len(times); i++ {
-		out[int64(times[i])] = int64(out[int64(times[i-1])] + intermediate[times[i]])
+		out[times[i]] = out[times[i-1]] + intermediate[times[i]]
 	}
 
 	return out
@@ -307,6 +307,21 @@ func convertStructJob(in *structs.Job) (*api.Job, error) {
 		return nil, err
 	}
 	return apiJob, nil
+}
+
+// Int64Sort is used to sort slices of int64 numbers
+type Int64Sort []int64
+
+func (s Int64Sort) Len() int {
+	return len(s)
+}
+
+func (s Int64Sort) Less(a, b int) bool {
+	return s[a] < s[b]
+}
+
+func (s Int64Sort) Swap(a, b int) {
+	s[a], s[b] = s[b], s[a]
 }
 
 const usage = `
