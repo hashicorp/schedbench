@@ -11,10 +11,6 @@ and multiple "tests", which are individual measurement implementations.
 
 The measurements recorded are simple:
 
-* **Number of placements made**<br>
-  The number of placement decisions successfully completed by the scheduler.
-  A placement is defined as an association between a task and an available
-  node. A task is a single logical unit of work.
 * **Number of tasks running**<br>
   This is the number of tasks which are actually running, as seen by the
   scheduler. A running task means that execution has begun (fork/exec has
@@ -23,9 +19,6 @@ The measurements recorded are simple:
 With the above measurements recorded as the numbers change, we can glean some
 interesting performance data from a scheduler such as:
 
-* Time to first placement
-* Time to complete all placements
-* Time to P95/P99 placements
 * Time to first task running
 * Time to all tasks running
 * Time to P95/P99 tasks running
@@ -78,6 +71,17 @@ loop should print status information as soon as it is available in a simple
 ASCII format. This format is `<metric>|<value>\n`. This data will be
 automatically consumed by the benchmark utility and recorded in the results.
 The metric name can be any string, and the value can be any float value.
+An optional timestamp may be provided using a third field. This timestamp is
+given using the current Unix time in nanosecond precision. If the timestamp is
+not given, the current timestamp will be used at the time the metric is
+recorded, resulting in a slightly inflated value. The payload will look like
+`<metric>|<value>|<timestamp>\n`, if a timestamp is provided.
+
+Although metric names are arbitrary, there are reserved metric names which have
+special meanings to this framework. At a minimum, the following metric names
+are expected to be emitted by each test implementation:
+
+* `running` - The number of tasks which are in the running state.
 
 The status command should exit when all work has completed. If a non-zero exit
 code is returned, the benchmark is considered failed.
@@ -90,20 +94,7 @@ This sub-command is invoked to allow cleaning up/terminating any running
 tasks, if required. This is intended to help prepare the system for future
 tests to be run. It is called after the `status` sub-command completes.
 
-## Metrics
-
-Currently this benchmark framework only requires two metrics to be measured
-by the `status` command (above) when running. These metric names are:
-
-* `placed` - The number of completed, successful placements
-* `running` - The number of tasks which are currently running
-
 ## Results
 
 The results of the test are written to a file named `result.csv` in the current
-working directory. The output is a simple 3-column format containing the
-following fields:
-
-* `elapsed_ms` - The total time elapsed in the test, in milliseconds
-* `placed` - Number of placements which have been made
-* `running` - Number of tasks in running state
+working directory.
