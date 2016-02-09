@@ -197,7 +197,7 @@ func writeResult(metrics map[int64]map[string]float64) error {
 
 	// Copy the buffer onto the file handle
 	if _, err := io.Copy(fh, buf); err != nil {
-		log.Fatalf("failed writing result file: %v", err)
+		return fmt.Errorf("failed writing result file: %v", err)
 	}
 
 	log.Printf("Results written to result.csv")
