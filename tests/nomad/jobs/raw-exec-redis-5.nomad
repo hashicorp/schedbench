@@ -1,6 +1,6 @@
 job "bench-raw-exec-redis" {
     datacenters = ["dc1"]
-
+    type = "batch"
     group "cache" {
         count = 5
 
@@ -22,6 +22,7 @@ job "bench-raw-exec-redis" {
                 memory = 100
                 network {
                     port "redis" {}
+                    mbits = 1
                 }
             }
         }

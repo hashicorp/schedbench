@@ -7,10 +7,15 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/hashicorp/nomad/api"
 	"github.com/hashicorp/nomad/jobspec"
 	"github.com/hashicorp/nomad/nomad/structs"
+)
+
+const (
+	interval = 5 * time.Minute
 )
 
 var numJobs, totalProcs int
@@ -98,63 +103,117 @@ func handleStatus() int {
 		totalAllocs += (group.Count * len(group.Tasks))
 	}
 	totalAllocs *= numJobs
+	minEvals := numJobs
 
 	// Get the API client
 	client, err := api.NewClient(api.DefaultConfig())
 	if err != nil {
 		log.Fatalf("failed creating nomad client: %v", err)
 	}
-	allocs := client.Allocations()
+	evalEndpoint := client.Evaluations()
 
-	// Wait loop for allocation statuses
-	var lastRunning, lastTotal int64
-	var index uint64 = 1
+	// Set up the args
+	args := &api.QueryOptions{
+		AllowStale: true,
+		WaitIndex:  1,
+	}
+
+	// Wait for all the allocations to be complete.
+	evals := make(map[string]*api.Evaluation, minEvals)
+	failedEvals := make(map[string]struct{})
+EVAL_POLL:
 	for {
-		// Set up the args
-		args := &api.QueryOptions{
-			AllowStale: true,
-			WaitIndex:  index,
-		}
+		time.Sleep(interval)
 
 		// Start the query
-		resp, qm, err := allocs.List(args)
+		resp, qm, err := evalEndpoint.List(args)
 		if err != nil {
 			// Only log and continue to skip minor errors
-			log.Printf("failed querying allocations: %v", err)
+			log.Printf("failed querying evals: %v", err)
 			continue
 		}
 
 		// Check the index
-		if qm.LastIndex == index {
+		if qm.LastIndex == args.WaitIndex {
 			continue
 		}
-		index = qm.LastIndex
+		args.WaitIndex = qm.LastIndex
 
-		// Check the response
-		var allocsTotal, allocsRunning int64
-		for _, alloc := range resp {
-			if alloc.DesiredStatus == structs.AllocDesiredStatusRun {
-				allocsTotal++
+		// Wait til all evals have gone through the scheduler.
+		if len(resp) < minEvals {
+			continue
+		}
+
+		// Ensure that all the evals are terminal, otherwise new allocations
+		// could be made.
+		for _, eval := range resp {
+			switch eval.Status {
+			case "failed":
+				failedEvals[eval.ID] = struct{}{}
+				continue EVAL_POLL
+			case "complete":
+				evals[eval.ID] = eval
+			case "canceled":
+				// Do nothing since it was a redundant eval.
+			default:
+				continue EVAL_POLL
 			}
-			if alloc.ClientStatus == structs.AllocClientStatusRunning {
-				allocsRunning++
+		}
+
+		break
+	}
+
+	// We now have all the evals, gather the allocations times.
+	startTimes := make(map[string]int64, totalAllocs)
+	failedAllocs := make(map[string]struct{})
+ALLOC_POLL:
+	for {
+		time.Sleep(interval)
+
+		for evalID := range evals {
+			// Start the query
+			resp, _, err := evalEndpoint.Allocations(evalID, args)
+			if err != nil {
+				// Only log and continue to skip minor errors
+				log.Printf("failed querying allocations: %v", err)
+				continue
+			}
+
+			for _, alloc := range resp {
+				switch alloc.ClientStatus {
+				case "failed":
+					failedAllocs[alloc.ID] = struct{}{}
+					continue
+				case "pending":
+					continue ALLOC_POLL
+				}
+
+				// Detect the start time.
+				for task, state := range alloc.TaskStates {
+					if state.State == "pending" || len(state.Events) == 0 {
+						continue ALLOC_POLL
+					}
+
+					// Get the first event.
+					startEvent := state.Events[0]
+					time := startEvent.Time
+					startTimes[fmt.Sprintf("%v-%v", alloc.ID, task)] = time
+				}
 			}
 		}
 
-		// Write the metrics, if there were changes.
-		if allocsTotal != lastTotal {
-			lastTotal = allocsTotal
-			fmt.Fprintf(os.Stdout, "placed|%f\n", float64(allocsTotal))
-		}
-		if allocsRunning != lastRunning {
-			lastRunning = allocsRunning
-			fmt.Fprintf(os.Stdout, "running|%f\n", float64(allocsRunning))
-		}
+		break
+	}
 
-		// Break out if all of our allocs are running
-		if allocsRunning == int64(totalAllocs) {
-			break
-		}
+	// Print the results.
+	if l := len(failedEvals); l != 0 {
+		fmt.Fprintf(os.Stdout, "failed_evals|%f\n", float64(l))
+	}
+	if l := len(failedAllocs); l != 0 {
+		fmt.Fprintf(os.Stdout, "failed_allocs|%f\n", float64(l))
+	}
+	for _, time := range startTimes {
+		fmt.Fprintf(os.Stdout, "running|%f|%d\n", float64(1), time)
 	}
 
 	return 0
