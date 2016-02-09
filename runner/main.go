@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"encoding/csv"
 	"fmt"
 	"io"
 	"log"
@@ -124,6 +125,7 @@ func (s *statusServer) handleUpdates(doneCh <-chan struct{}) {
 func writeResult(metrics map[int64]map[string]float64) error {
 	// Create the output buffer
 	buf := new(bytes.Buffer)
+	csvWriter := csv.NewWriter(buf)
 
 	// Get the names of the data fields
 	fieldsMap := make(map[string]struct{})
@@ -139,8 +141,7 @@ func writeResult(metrics map[int64]map[string]float64) error {
 	sort.Strings(fields)
 
 	// Write the field names as a header row.
-	fmt.Fprint(buf, "elapsed_ms,")
-	fmt.Fprintln(buf, strings.Join(fields, ","))
+	csvWriter.Write(append([]string{"elapsed_ms"}, fields...))
 
 	// Used to record the last values as we iterate, making it possible to fill
 	// in all known data fields at each known timestamp.
@@ -154,28 +155,39 @@ func writeResult(metrics map[int64]map[string]float64) error {
 	sort.Sort(Int64Sort(times))
 
 	for _, ts := range times {
+		records := make([]string, len(fields)+1)
+
 		// Log the elapsed time in milliseconds
-		fmt.Fprintf(buf, "%d,", ts/int64(time.Millisecond))
+		records[0] = strconv.FormatInt((ts / int64(time.Millisecond)), 10)
 
 		// Go over the events for the given time, using the field
 		// header mappings to ensure we correctly order the columns.
 		events := metrics[ts]
-		for _, field := range fields {
+		for i, field := range fields {
 			if value, ok := events[field]; ok {
 				last[field] = value
 			}
-			// Flush the float values to the buffer in order
-			fmt.Fprintf(buf, "%f,", last[field])
+			records[i+1] = strconv.FormatFloat(last[field], 'f', -1, 64)
 		}
-		buf.WriteString("\n") // End of CSV line
+
+		// Flush the line to the CSV encoder
+		csvWriter.Write(records)
 	}
 
-	// Copy the output buffer into a result file.
+	// Flush the lines to the buffer and check for write errors
+	csvWriter.Flush()
+	if err := csvWriter.Error(); err != nil {
+		return fmt.Errorf("failed writing CSV data: %v", err)
+	}
+
+	// Create the output file
 	fh, err := os.Create("result.csv")
 	if err != nil {
 		return fmt.Errorf("failed creating result file: %v", err)
 	}
 	defer fh.Close()
+
+	// Copy the buffer onto the file handle
 	if _, err := io.Copy(fh, buf); err != nil {
 		log.Fatalf("failed writing result file: %v", err)
 	}
