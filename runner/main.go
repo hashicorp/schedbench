@@ -2,11 +2,13 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"log"
 	"os"
 	"os/exec"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -87,24 +89,14 @@ func (s *statusServer) run() {
 }
 
 func (s *statusServer) handleUpdates(doneCh <-chan struct{}) {
-	var placed, running float64
+	// Used to store events and times
+	metrics := make(map[int64]map[string]float64)
 
 	// Record the start time
 	start := time.Now().UnixNano()
-
-	// Open the status file
-	fh, err := os.Create("result.csv")
-	if err != nil {
-		log.Fatalf("failed creating result file: %v", err)
+	metrics[0] = map[string]float64{
+		"running": 0,
 	}
-	defer fh.Close()
-	log.Printf("results will be streamed to result.csv")
-
-	// Write the headers
-	if _, err := fmt.Fprintln(fh, "elapsed_ms,placed,running"); err != nil {
-		log.Fatalf("failed writing headers: %v", err)
-	}
-	s.updateCh <- &statusUpdate{key: "start"}
 
 	for {
 		select {
@@ -115,27 +107,94 @@ func (s *statusServer) handleUpdates(doneCh <-chan struct{}) {
 				ts = time.Now().UnixNano()
 			}
 
-			// Switch on the key name
-			switch update.key {
-			case "start":
-				// Observe the start of the test
-				ts, placed, running = start, 0, 0
-			case "placed":
-				placed = update.val
-			case "running":
-				running = update.val
+			// Compute elapsed time and log the value away
+			elapsed := ts - start
+			if _, ok := metrics[elapsed]; !ok {
+				metrics[elapsed] = make(map[string]float64)
 			}
-
-			// Compute elapsed time in milliseconds
-			elapsed := (ts - start) / int64(time.Millisecond)
-
-			// Log current values
-			fmt.Fprintf(fh, "%d,%f,%f\n", elapsed, placed, running)
+			metrics[elapsed][update.key] = update.val
 
 		case <-doneCh:
+			if err := writeResult(metrics); err != nil {
+				log.Fatalf("failed writing result: %v", err)
+			}
 			return
 		}
 	}
+}
+
+type Int64Sort []int64
+
+func (s Int64Sort) Len() int {
+	return len(s)
+}
+
+func (s Int64Sort) Less(a, b int) bool {
+	return s[a] < s[b]
+}
+
+func (s Int64Sort) Swap(a, b int) {
+	s[a], s[b] = s[b], s[a]
+}
+
+func writeResult(metrics map[int64]map[string]float64) error {
+	// Create the output buffer
+	buf := new(bytes.Buffer)
+
+	// Write the field headers
+	fieldsMap := make(map[string]struct{})
+	for _, events := range metrics {
+		for name, _ := range events {
+			fieldsMap[name] = struct{}{}
+		}
+	}
+	fields := make([]string, 0, len(fieldsMap))
+	for field, _ := range fieldsMap {
+		fields = append(fields, field)
+	}
+	sort.Strings(fields)
+	fmt.Fprint(buf, "elapsed_ms,")
+	fmt.Fprintln(buf, strings.Join(fields, ","))
+
+	// Used to record the last values as we iterate
+	last := make(map[string]float64, len(fields))
+
+	// Write the values
+	var times []int64
+	for time, _ := range metrics {
+		times = append(times, time)
+	}
+	sort.Sort(Int64Sort(times))
+
+	for _, ts := range times {
+		// Log the elapsed time in milliseconds
+		fmt.Fprintf(buf, "%d,", ts/int64(time.Millisecond))
+
+		// Go over the events for the given time, using the field
+		// header mappings to ensure we correctly order the columns.
+		events := metrics[ts]
+		for _, field := range fields {
+			if value, ok := events[field]; ok {
+				last[field] = value
+			}
+			// Flush the float values to the buffer in order
+			fmt.Fprintf(buf, "%f,", last[field])
+		}
+		buf.WriteString("\n")
+	}
+
+	// Write the result to the file
+	fh, err := os.Create("result.csv")
+	if err != nil {
+		return fmt.Errorf("failed creating result file: %v", err)
+	}
+	defer fh.Close()
+	if _, err := io.Copy(fh, buf); err != nil {
+		log.Fatalf("failed writing result file: %v", err)
+	}
+
+	log.Printf("Results written to result.csv")
+	return nil
 }
 
 type statusUpdate struct {
