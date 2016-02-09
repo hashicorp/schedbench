@@ -17,7 +17,7 @@ import (
 
 const (
 	// pollInterval is how often the status command will poll for results.
-	pollInterval = 5 * time.Minute
+	pollInterval = 3 * time.Minute
 )
 
 var numJobs, totalProcs int
@@ -184,9 +184,13 @@ EVAL_POLL:
 	scheduleTimes := make(map[string]int64, totalAllocs)
 	startTimes := make(map[string]int64, totalAllocs)
 	failedAllocs := make(map[string]struct{})
+	first := true
 ALLOC_POLL:
 	for {
-		time.Sleep(pollInterval)
+		if !first {
+			time.Sleep(pollInterval)
+		}
+		first = false
 
 		for evalID := range evals {
 			// Start the query
