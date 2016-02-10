@@ -92,6 +92,7 @@ func handleRun() int {
 	errCh := make(chan error, numJobs)
 	stopCh := make(chan struct{})
 	jobsCh := make(chan *api.Job, jobSubmitters)
+	defer close(stopCh)
 	for i := 0; i < jobSubmitters; i++ {
 		go submitJobs(jobs, jobsCh, stopCh, errCh)
 	}
@@ -99,36 +100,39 @@ func handleRun() int {
 	for i := 0; i < numJobs; i++ {
 		copy, err := copystructure.Copy(apiJob)
 		if err != nil {
-			close(stopCh)
 			log.Fatalf("failed to copy api job: %v", err)
 		}
 
 		// Increment the job ID
 		jobCopy := copy.(*api.Job)
 		jobCopy.ID = fmt.Sprintf("%s-%d", jobID, i)
-		log.Println(jobCopy.ID)
 		jobsCh <- jobCopy
 	}
 
-	// Stop and collect errors if any
-	close(stopCh)
-	select {
-	case err := <-errCh:
-		log.Fatalf("error submitting job: %v", err)
-	default:
+	// Collect errors if any
+	for i := 0; i < numJobs; i++ {
+		select {
+		case err := <-errCh:
+			if err != nil {
+				log.Fatalf("error submitting job: %v", err)
+			}
+		case <-stopCh:
+			return 0
+		}
 	}
 
 	return 0
 }
 
 func submitJobs(client *api.Jobs, jobs <-chan *api.Job, stopCh chan struct{}, errCh chan<- error) {
-	select {
-	case job := <-jobs:
-		if _, _, err := client.Register(job, nil); err != nil {
+	for {
+		select {
+		case job := <-jobs:
+			_, _, err := client.Register(job, nil)
 			errCh <- err
+		case <-stopCh:
+			return
 		}
-	case <-stopCh:
-		return
 	}
 }
 
