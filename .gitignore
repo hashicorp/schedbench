@@ -1,3 +1,6 @@
 .vagrant
 bin/
 result.csv
+
+# Nomad-specific ignores
+tests/nomad/classlogger/classlogger
