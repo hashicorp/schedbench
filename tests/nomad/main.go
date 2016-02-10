@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/nomad/api"
 	"github.com/hashicorp/nomad/jobspec"
 	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/mitchellh/copystructure"
 )
 
 const (
@@ -82,16 +83,53 @@ func handleRun() int {
 	}
 	jobs := client.Jobs()
 
+	jobSubmitters := 64
+	if numJobs < jobSubmitters {
+		jobSubmitters = numJobs
+	}
+
 	// Submit the job the requested number of times
+	errCh := make(chan error, numJobs)
+	stopCh := make(chan struct{})
+	jobsCh := make(chan *api.Job, jobSubmitters)
+	for i := 0; i < jobSubmitters; i++ {
+		go submitJobs(jobs, jobsCh, stopCh, errCh)
+	}
+
 	for i := 0; i < numJobs; i++ {
-		// Increment the job ID
-		apiJob.ID = fmt.Sprintf("%s-%d", jobID, i)
-		if _, _, err := jobs.Register(apiJob, nil); err != nil {
-			log.Fatalf("failed registering jobs: %v", err)
+		copy, err := copystructure.Copy(apiJob)
+		if err != nil {
+			close(stopCh)
+			log.Fatalf("failed to copy api job: %v", err)
 		}
+
+		// Increment the job ID
+		jobCopy := copy.(*api.Job)
+		jobCopy.ID = fmt.Sprintf("%s-%d", jobID, i)
+		log.Println(jobCopy.ID)
+		jobsCh <- jobCopy
+	}
+
+	// Stop and collect errors if any
+	close(stopCh)
+	select {
+	case err := <-errCh:
+		log.Fatalf("error submitting job: %v", err)
+	default:
 	}
 
 	return 0
+}
+
+func submitJobs(client *api.Jobs, jobs <-chan *api.Job, stopCh chan struct{}, errCh chan<- error) {
+	select {
+	case job := <-jobs:
+		if _, _, err := client.Register(job, nil); err != nil {
+			errCh <- err
+		}
+	case <-stopCh:
+		return
+	}
 }
 
 func handleStatus() int {
@@ -167,7 +205,6 @@ EVAL_POLL:
 			switch eval.Status {
 			case "failed":
 				failedEvals[eval.ID] = struct{}{}
-				continue EVAL_POLL
 			case "complete":
 				evals[eval.ID] = eval
 			case "canceled":

@@ -30,7 +30,7 @@ type statusServer struct {
 func newStatusServer(outStream io.Reader) *statusServer {
 	return &statusServer{
 		outStream: bufio.NewScanner(outStream),
-		updateCh:  make(chan *statusUpdate, 128),
+		updateCh:  make(chan *statusUpdate, 512),
 	}
 }
 
