@@ -279,35 +279,44 @@ ALLOC_POLL:
 	if l := len(failedAllocs); l != 0 {
 		fmt.Fprintf(os.Stdout, "failed_allocs|%f\n", float64(l))
 	}
-	for time, count := range timeToCumCount(startTimes) {
+	for time, count := range accumTimes(startTimes) {
 		fmt.Fprintf(os.Stdout, "running|%f|%d\n", float64(count), time)
 	}
-	for time, count := range timeToCumCount(scheduleTimes) {
+	for time, count := range accumTimes(scheduleTimes) {
 		fmt.Fprintf(os.Stdout, "placed|%f|%d\n", float64(count), time)
 	}
 
 	return 0
 }
 
-// timeToCumCount returns a mapping of time to cumulative counts
-// {foo: 10, bar: 20} -> {10: 1, 20:2}
-func timeToCumCount(in map[string]int64) map[int64]int64 {
+// accumTimes returns a mapping of time to cumulative counts. Takes a map
+// of ID's to timestamps (ID is unimportant), and returns a mapping of
+// timestamps to the cumulative count of events from that time.
+// Ex: {foo: 10, bar: 10, baz: 20} -> {10: 2, 20: 3}
+func accumTimes(in map[string]int64) map[int64]int64 {
+	// Initialize the result.
 	out := make(map[int64]int64)
+
+	// Hot path if we have no times.
+	if len(in) == 0 {
+		return out
+	}
+
+	// Convert to intermediate format to handle counting multiple events
+	// from the same timestamp.
 	intermediate := make(map[int64]int64)
 	for _, v := range in {
 		intermediate[v] += 1
 	}
 
+	// Create a slice of times so we can sort it.
 	var times []int64
 	for time := range intermediate {
 		times = append(times, time)
 	}
-
-	if len(times) == 0 {
-		return out
-	}
-
 	sort.Sort(Int64Sort(times))
+
+	// Go over the times and populate the counts for each in the result.
 	out[times[0]] = intermediate[times[0]]
 	for i := 1; i < len(times); i++ {
 		out[times[i]] = out[times[i-1]] + intermediate[times[i]]
