@@ -25,16 +25,18 @@ func main() {
 	// Perform setup
 	log.Println("[DEBUG] runner: executing step 'setup'")
 	setupCmd := exec.Command(path, "setup")
-	if out, err := setupCmd.CombinedOutput(); err != nil {
-		log.Fatalf("[ERR] runner: failed running setup: %v\nOutput: %s", err, string(out))
+	setupCmd.Stderr = os.Stdout
+	if out, err := setupCmd.Output(); err != nil {
+		log.Fatalf("[ERR] runner: failed running setup: %v\nStdout: %s", err, string(out))
 	}
 
 	// Always run the teardown
 	defer func() {
 		log.Println("[DEBUG] runner: executing step 'teardown'")
 		teardownCmd := exec.Command(path, "teardown")
-		if out, err := teardownCmd.CombinedOutput(); err != nil {
-			log.Fatalf("[ERR] runner: failed teardown: %v\nOutput: %s", err, string(out))
+		teardownCmd.Stderr = os.Stdout
+		if out, err := teardownCmd.Output(); err != nil {
+			log.Fatalf("[ERR] runner: failed teardown: %v\nStdout: %s", err, string(out))
 		}
 	}()
 
@@ -57,8 +59,9 @@ func main() {
 	// Start running the benchmark
 	log.Println("[DEBUG] runner: executing step 'run'")
 	runCmd := exec.Command(path, "run")
-	if out, err := runCmd.CombinedOutput(); err != nil {
-		log.Fatalf("[ERR] runner: failed running benchmark: %v\nOutput: %s", err, string(out))
+	runCmd.Stderr = os.Stdout
+	if out, err := runCmd.Output(); err != nil {
+		log.Fatalf("[ERR] runner: failed running benchmark: %v\nStdout: %s", err, string(out))
 	}
 
 	// Wait for the status command to return
