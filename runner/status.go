@@ -117,8 +117,10 @@ func (s *statusServer) handleUpdates(doneCh <-chan struct{}) {
 	for {
 		select {
 		case update := <-s.updateCh:
-			// Compute elapsed time and log the value away
-			elapsed := update.timestamp - start
+			// Compute elapsed time and log the value away. We reduce to
+			// milliseconds here so that our map keys are guaranteed unique
+			// per millisecond. We otherwise could have a rounding problem.
+			elapsed := (update.timestamp - start) / int64(time.Millisecond)
 			if _, ok := metrics[elapsed]; !ok {
 				metrics[elapsed] = make(map[string]float64)
 			}
@@ -203,8 +205,8 @@ func writeResult(metrics map[int64]map[string]float64) error {
 	for _, ts := range times {
 		records := make([]string, len(fields)+1)
 
-		// Log the elapsed time in milliseconds
-		records[0] = strconv.FormatInt((ts / int64(time.Millisecond)), 10)
+		// Log the elapsed time
+		records[0] = strconv.FormatInt(ts, 10)
 
 		// Go over the events for the given time, using the field
 		// header mappings to ensure we correctly order the columns.
