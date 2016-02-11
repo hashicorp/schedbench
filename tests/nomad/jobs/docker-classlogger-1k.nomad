@@ -1,11 +1,11 @@
-job "bench-docker-classlogger-1k" {
+job "bench-docker-classlogger-test" {
     datacenters = ["us-central1"]
 
     group "classlogger_1" {
-        count = 200
+        count = 5
 
         constraint {
-            attribute = "$node.class"
+            attribute = "${node.class}"
             value     = "class_1"
         }
 
@@ -28,16 +28,16 @@ job "bench-docker-classlogger-1k" {
 
             env {
                 REDIS_ADDR = "redis.service.consul:6379"
-                NODE_CLASS = "$node.class"
+                NODE_CLASS = "${node.class}"
             }
         }
     }
 
     group "classlogger_2" {
-        count = 200
+        count = 5
 
         constraint {
-            attribute = "$node.class"
+            attribute = "${node.class}"
             value     = "class_2"
         }
 
@@ -60,16 +60,16 @@ job "bench-docker-classlogger-1k" {
 
             env {
                 REDIS_ADDR = "redis.service.consul:6379"
-                NODE_CLASS = "$node.class"
+                NODE_CLASS = "${node.class}"
             }
         }
     }
 
     group "classlogger_3" {
-        count = 200
+        count = 5
 
         constraint {
-            attribute = "$node.class"
+            attribute = "${node.class}"
             value     = "class_3"
         }
 
@@ -92,16 +92,16 @@ job "bench-docker-classlogger-1k" {
 
             env {
                 REDIS_ADDR = "redis.service.consul:6379"
-                NODE_CLASS = "$node.class"
+                NODE_CLASS = "${node.class}"
             }
         }
     }
 
     group "classlogger_4" {
-        count = 200
+        count = 5
 
         constraint {
-            attribute = "$node.class"
+            attribute = "${node.class}"
             value     = "class_4"
         }
 
@@ -124,16 +124,16 @@ job "bench-docker-classlogger-1k" {
 
             env {
                 REDIS_ADDR = "redis.service.consul:6379"
-                NODE_CLASS = "$node.class"
+                NODE_CLASS = "${node.class}"
             }
         }
     }
 
     group "classlogger_5" {
-        count = 200
+        count = 5
 
         constraint {
-            attribute = "$node.class"
+            attribute = "${node.class}"
             value     = "class_5"
         }
 
@@ -156,7 +156,7 @@ job "bench-docker-classlogger-1k" {
 
             env {
                 REDIS_ADDR = "redis.service.consul:6379"
-                NODE_CLASS = "$node.class"
+                NODE_CLASS = "${node.class}"
             }
         }
     }
