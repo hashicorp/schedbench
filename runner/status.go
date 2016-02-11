@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -20,6 +21,12 @@ type statusServer struct {
 	// The output stream. This is attached to the output from the test
 	// implementation and is used to scan line-by-line over it.
 	outStream *bufio.Scanner
+
+	// Simple metrics about the status collector. Used to print some basic
+	// debugging information to stdout.
+	lastUpdate        time.Time
+	totalUpdates      int
+	updateMetricsLock sync.Mutex
 
 	// The updateCh is used to pass status data from the scanner to the
 	// result collector.
@@ -42,6 +49,7 @@ func (s *statusServer) run() {
 	doneCh := make(chan struct{})
 	defer close(doneCh)
 	go s.handleUpdates(doneCh)
+	go s.logUpdateTimes(doneCh)
 
 	for s.outStream.Scan() {
 		payload := s.outStream.Text()
@@ -60,18 +68,18 @@ func (s *statusServer) run() {
 			// Timestamp present, parse and use
 			ts, err = strconv.ParseInt(parts[2], 10, 64)
 			if err != nil {
-				log.Printf("failed parsing timestamp: %v", err)
+				log.Printf("[ERR] Failed parsing metric timestamp in %q: %v", payload, err)
 				continue
 			}
 		default:
-			log.Printf("invalid metric payload: %q", payload)
+			log.Printf("[ERR] Invalid metric payload: %q", payload)
 			continue
 		}
 
 		// Parse the metric
 		val, err := strconv.ParseFloat(parts[1], 64)
 		if err != nil {
-			log.Printf("failed parsing metric value in %q: %v", payload, err)
+			log.Printf("[ERR] Failed parsing metric value in %q: %v", payload, err)
 			continue
 		}
 
@@ -84,13 +92,13 @@ func (s *statusServer) run() {
 		select {
 		case s.updateCh <- update:
 		default:
-			log.Printf("update channel full! dropping update: %v", update)
+			log.Printf("[WARN] Update channel full! Dropping update: %v", update)
 		}
 	}
 
 	// Check if we broke out due to an error
 	if err := s.outStream.Err(); err != nil {
-		log.Printf("failed reading payload: %v", err)
+		log.Fatalf("[ERR] Failed reading payload: %v", err)
 	}
 }
 
@@ -116,11 +124,41 @@ func (s *statusServer) handleUpdates(doneCh <-chan struct{}) {
 			}
 			metrics[elapsed][update.key] = update.val
 
+			// Refresh the last update time
+			s.updateMetricsLock.Lock()
+			s.lastUpdate = time.Now()
+			s.totalUpdates++
+			s.updateMetricsLock.Unlock()
+
 		case <-doneCh:
 			// Format and write the metrics to the result file.
 			if err := writeResult(metrics); err != nil {
-				log.Fatalf("failed writing result: %v", err)
+				log.Fatalf("[ERR] Failed writing result: %v", err)
 			}
+			return
+		}
+	}
+}
+
+// logUpdateTimes periodically logs the last time we saw an update from the
+// status collector. This is helpful when debugging so that we know if the
+// sub-command has halted for some reason and is no longer fetching status.
+func (s *statusServer) logUpdateTimes(doneCh chan struct{}) {
+	for {
+		select {
+		case <-time.After(10 * time.Second):
+			s.updateMetricsLock.Lock()
+			last := s.lastUpdate
+			total := s.totalUpdates
+			s.updateMetricsLock.Unlock()
+			if total == 0 {
+				log.Printf("[DEBUG] No status updates yet...")
+			} else {
+				log.Printf("[DEBUG] Last status update %s ago (%d total)",
+					time.Now().Sub(last), total)
+			}
+
+		case <-doneCh:
 			return
 		}
 	}
@@ -200,7 +238,7 @@ func writeResult(metrics map[int64]map[string]float64) error {
 		return fmt.Errorf("failed writing result file: %v", err)
 	}
 
-	log.Printf("Results written to result.csv")
+	log.Printf("[INFO] Results written to result.csv")
 	return nil
 }
 
