@@ -38,6 +38,7 @@ func main() {
 
 	// Create the status collector cmd
 	statusCmd := exec.Command(path, "status")
+	statusCmd.Stderr = os.Stderr
 	outBuf, err := statusCmd.StdoutPipe()
 	if err != nil {
 		log.Fatalf("failed attaching stdout: %v", err)
