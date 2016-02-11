@@ -34,6 +34,10 @@ A single implementation of a test will be invoked as an executable command.
 It will be called numerous times with varying options to implement different
 pieces of the benchmarking interface.
 
+To log debug messages from within a test implementation, simply write messages
+to stderr. They will be piped through and displayed on the terminal to allow
+for useful troubleshooting information.
+
 At a minimum, a test must implement the following sub-commands:
 
 ---
