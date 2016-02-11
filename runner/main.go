@@ -41,7 +41,7 @@ func main() {
 	// Start running the status collector
 	log.Println("[DEBUG] runner: executing step 'status'")
 	statusCmd := exec.Command(path, "status")
-	statusCmd.Stderr = os.Stderr
+	statusCmd.Stderr = os.Stdout
 	outBuf, err := statusCmd.StdoutPipe()
 	if err != nil {
 		log.Fatalf("[ERR] runner: failed attaching stdout: %v", err)
