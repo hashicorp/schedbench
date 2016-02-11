@@ -5,7 +5,7 @@ job "bench-exec-classlogger-100k" {
         count = 20000
 
         constraint {
-            attribute = "$node.class"
+            attribute = "${node.class}"
             value     = "class_1"
         }
 
@@ -28,7 +28,7 @@ job "bench-exec-classlogger-100k" {
 
             env {
                 REDIS_ADDR = "redis.service.consul:6379"
-                NODE_CLASS = "$node.class"
+                NODE_CLASS = "${node.class}"
             }
         }
     }
@@ -37,7 +37,7 @@ job "bench-exec-classlogger-100k" {
         count = 20000
 
         constraint {
-            attribute = "$node.class"
+            attribute = "${node.class}"
             value     = "class_2"
         }
 
@@ -60,7 +60,7 @@ job "bench-exec-classlogger-100k" {
 
             env {
                 REDIS_ADDR = "redis.service.consul:6379"
-                NODE_CLASS = "$node.class"
+                NODE_CLASS = "${node.class}"
             }
         }
     }
@@ -69,7 +69,7 @@ job "bench-exec-classlogger-100k" {
         count = 20000
 
         constraint {
-            attribute = "$node.class"
+            attribute = "${node.class}"
             value     = "class_3"
         }
 
@@ -92,7 +92,7 @@ job "bench-exec-classlogger-100k" {
 
             env {
                 REDIS_ADDR = "redis.service.consul:6379"
-                NODE_CLASS = "$node.class"
+                NODE_CLASS = "${node.class}"
             }
         }
     }
@@ -101,7 +101,7 @@ job "bench-exec-classlogger-100k" {
         count = 20000
 
         constraint {
-            attribute = "$node.class"
+            attribute = "${node.class}"
             value     = "class_4"
         }
 
@@ -124,7 +124,7 @@ job "bench-exec-classlogger-100k" {
 
             env {
                 REDIS_ADDR = "redis.service.consul:6379"
-                NODE_CLASS = "$node.class"
+                NODE_CLASS = "${node.class}"
             }
         }
     }
@@ -133,7 +133,7 @@ job "bench-exec-classlogger-100k" {
         count = 20000
 
         constraint {
-            attribute = "$node.class"
+            attribute = "${node.class}"
             value     = "class_5"
         }
 
@@ -156,7 +156,7 @@ job "bench-exec-classlogger-100k" {
 
             env {
                 REDIS_ADDR = "redis.service.consul:6379"
-                NODE_CLASS = "$node.class"
+                NODE_CLASS = "${node.class}"
             }
         }
     }
