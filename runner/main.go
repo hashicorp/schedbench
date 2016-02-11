@@ -16,38 +16,38 @@ func main() {
 	// Make sure the script exists and is executable
 	fi, err := os.Stat(path)
 	if err != nil {
-		log.Fatalf("[ERR] Failed to stat %q: %v", path, err)
+		log.Fatalf("[ERR] runner: failed to stat %q: %v", path, err)
 	}
 	if fi.Mode().Perm()|0111 == 0 {
-		log.Fatalf("[ERR] File %q is not executable", path)
+		log.Fatalf("[ERR] runner: file %q is not executable", path)
 	}
 
 	// Perform setup
-	log.Println("[DEBUG] Executing step 'setup'")
+	log.Println("[DEBUG] runner: executing step 'setup'")
 	setupCmd := exec.Command(path, "setup")
 	if out, err := setupCmd.CombinedOutput(); err != nil {
-		log.Fatalf("[ERR] Failed running setup: %v\nOutput: %s", err, string(out))
+		log.Fatalf("[ERR] runner: failed running setup: %v\nOutput: %s", err, string(out))
 	}
 
 	// Always run the teardown
 	defer func() {
-		log.Println("[DEBUG] Executing step 'teardown'")
+		log.Println("[DEBUG] runner: executing step 'teardown'")
 		teardownCmd := exec.Command(path, "teardown")
 		if out, err := teardownCmd.CombinedOutput(); err != nil {
-			log.Fatalf("[ERR] Failed teardown: %v\nOutput: %s", err, string(out))
+			log.Fatalf("[ERR] runner: failed teardown: %v\nOutput: %s", err, string(out))
 		}
 	}()
 
 	// Start running the status collector
-	log.Println("[DEBUG] Executing step 'status'")
+	log.Println("[DEBUG] runner: executing step 'status'")
 	statusCmd := exec.Command(path, "status")
 	statusCmd.Stderr = os.Stderr
 	outBuf, err := statusCmd.StdoutPipe()
 	if err != nil {
-		log.Fatalf("[ERR] Failed attaching stdout: %v", err)
+		log.Fatalf("[ERR] runner: failed attaching stdout: %v", err)
 	}
 	if err := statusCmd.Start(); err != nil {
-		log.Fatalf("[ERR] Failed to run status submitter: %v", err)
+		log.Fatalf("[ERR] runner: failed to run status submitter: %v", err)
 	}
 
 	// Start listening for updates
@@ -55,15 +55,15 @@ func main() {
 	go srv.run()
 
 	// Start running the benchmark
-	log.Println("[DEBUG] Executing step 'run'")
+	log.Println("[DEBUG] runner: executing step 'run'")
 	runCmd := exec.Command(path, "run")
 	if out, err := runCmd.CombinedOutput(); err != nil {
-		log.Fatalf("[ERR] Failed running benchmark: %v\nOutput: %s", err, string(out))
+		log.Fatalf("[ERR] runner: failed running benchmark: %v\nOutput: %s", err, string(out))
 	}
 
 	// Wait for the status command to return
-	log.Println("[DEBUG] Waiting for step 'status' to complete...")
+	log.Println("[DEBUG] runner: waiting for step 'status' to complete...")
 	if err := statusCmd.Wait(); err != nil {
-		log.Fatalf("[ERR] Status command got error: %v", err)
+		log.Fatalf("[ERR] runner: status command got error: %v", err)
 	}
 }

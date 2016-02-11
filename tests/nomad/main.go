@@ -25,6 +25,9 @@ var numJobs, totalProcs int
 var jobFile string
 
 func main() {
+	// Log everything to stderr so the runner can pipe it through
+	log.SetOutput(os.Stderr)
+
 	// Check the args
 	if len(os.Args) != 2 {
 		log.Fatalln(usage)
@@ -34,12 +37,12 @@ func main() {
 	var err error
 	v := os.Getenv("JOBS")
 	if numJobs, err = strconv.Atoi(v); err != nil {
-		log.Fatalln("JOBS must be numeric")
+		log.Fatalln("[ERR] nomad: JOBS must be numeric")
 	}
 
 	// Get the location of the job file
 	if jobFile = os.Getenv("JOBSPEC"); jobFile == "" {
-		log.Fatalln("JOBSPEC must be provided")
+		log.Fatalln("[ERR] nomad: JOBSPEC must be provided")
 	}
 
 	// Switch on the command
@@ -66,20 +69,20 @@ func handleRun() int {
 	// Parse the job file
 	job, err := jobspec.ParseFile(jobFile)
 	if err != nil {
-		log.Fatalf("failed parsing job file: %v", err)
+		log.Fatalf("[ERR] nomad: failed parsing job file: %v", err)
 	}
 
 	// Convert to an API struct for submission
 	apiJob, err := convertStructJob(job)
 	if err != nil {
-		log.Fatalf("failed converting job: %v", err)
+		log.Fatalf("[ERR] nomad: failed converting job: %v", err)
 	}
 	jobID := apiJob.ID
 
 	// Get the API client
 	client, err := api.NewClient(api.DefaultConfig())
 	if err != nil {
-		log.Fatalf("failed creating nomad client: %v", err)
+		log.Fatalf("[ERR] nomad: failed creating nomad client: %v", err)
 	}
 	jobs := client.Jobs()
 
@@ -87,6 +90,7 @@ func handleRun() int {
 	if numJobs < jobSubmitters {
 		jobSubmitters = numJobs
 	}
+	log.Printf("[DEBUG] nomad: using %d parallel job submitters", jobSubmitters)
 
 	// Submit the job the requested number of times
 	errCh := make(chan error, numJobs)
@@ -97,10 +101,11 @@ func handleRun() int {
 		go submitJobs(jobs, jobsCh, stopCh, errCh)
 	}
 
+	log.Printf("[DEBUG] nomad: submitting %d jobs", numJobs)
 	for i := 0; i < numJobs; i++ {
 		copy, err := copystructure.Copy(apiJob)
 		if err != nil {
-			log.Fatalf("failed to copy api job: %v", err)
+			log.Fatalf("[ERR] nomad: failed to copy api job: %v", err)
 		}
 
 		// Increment the job ID
@@ -114,7 +119,7 @@ func handleRun() int {
 		select {
 		case err := <-errCh:
 			if err != nil {
-				log.Fatalf("error submitting job: %v", err)
+				log.Fatalf("[ERR] nomad: failed submitting job: %v", err)
 			}
 		case <-stopCh:
 			return 0
@@ -140,7 +145,7 @@ func handleStatus() int {
 	// Parse the job file to get the total expected allocs
 	job, err := jobspec.ParseFile(jobFile)
 	if err != nil {
-		log.Fatalf("failed parsing job file: %v", err)
+		log.Fatalf("[ERR] nomad: failed parsing job file: %v", err)
 	}
 	var totalAllocs int
 	for _, group := range job.TaskGroups {
@@ -148,6 +153,7 @@ func handleStatus() int {
 	}
 	totalAllocs *= numJobs
 	minEvals := numJobs
+	log.Printf("[DEBUG] nomad: expecting %d allocs (%d evals minimum)", totalAllocs, minEvals)
 
 	// Determine the set of jobs we should track.
 	jobs := make(map[string]struct{})
@@ -159,7 +165,7 @@ func handleStatus() int {
 	// Get the API client
 	client, err := api.NewClient(api.DefaultConfig())
 	if err != nil {
-		log.Fatalf("failed creating nomad client: %v", err)
+		log.Fatalf("[ERR] nomad: failed creating nomad client: %v", err)
 	}
 	evalEndpoint := client.Evaluations()
 
@@ -174,13 +180,14 @@ func handleStatus() int {
 	failedEvals := make(map[string]struct{})
 EVAL_POLL:
 	for {
+		log.Printf("[DEBUG] nomad: next eval poll in %s", pollInterval)
 		time.Sleep(pollInterval)
 
 		// Start the query
 		resp, qm, err := evalEndpoint.List(args)
 		if err != nil {
 			// Only log and continue to skip minor errors
-			log.Printf("failed querying evals: %v", err)
+			log.Printf("[ERR] nomad: failed querying evals: %v", err)
 			continue
 		}
 
@@ -199,7 +206,9 @@ EVAL_POLL:
 		}
 
 		// Wait til all evals have gone through the scheduler.
-		if len(filter) < minEvals {
+		if n := len(filter); n < minEvals {
+			log.Printf("[DEBUG] nomad: expect %d evals, have %d, polling again",
+				minEvals, n)
 			continue
 		}
 
@@ -229,6 +238,7 @@ EVAL_POLL:
 ALLOC_POLL:
 	for {
 		if !first {
+			log.Printf("[DEBUG] nomad: next alloc poll in %s", pollInterval)
 			time.Sleep(pollInterval)
 		}
 		first = false
@@ -238,7 +248,7 @@ ALLOC_POLL:
 			resp, _, err := evalEndpoint.Allocations(evalID, args)
 			if err != nil {
 				// Only log and continue to skip minor errors
-				log.Printf("failed querying allocations: %v", err)
+				log.Printf("[ERR] nomad: failed querying allocations: %v", err)
 				continue
 			}
 
@@ -329,17 +339,18 @@ func handleTeardown() int {
 	// Get the API client
 	client, err := api.NewClient(api.DefaultConfig())
 	if err != nil {
-		log.Fatalf("failed creating nomad client: %v", err)
+		log.Fatalf("[ERR] nomad: failed creating nomad client: %v", err)
 	}
 
 	// Iterate all of the jobs and stop them
+	log.Printf("[DEBUG] nomad: deregistering benchmark jobs")
 	jobs, _, err := client.Jobs().List(nil)
 	if err != nil {
-		log.Fatalf("failed listing jobs: %v", err)
+		log.Fatalf("[ERR] nomad: failed listing jobs: %v", err)
 	}
 	for _, job := range jobs {
 		if _, _, err := client.Jobs().Deregister(job.ID, nil); err != nil {
-			log.Fatalf("failed deregistering job: %v", err)
+			log.Fatalf("[ERR] nomad: failed deregistering job: %v", err)
 		}
 	}
 	return 0
