@@ -1,44 +1,12 @@
 job "bench-exec-classlogger-100k" {
-    datacenters = ["us-central1", "us-east1", "europe-west1", "asia-east1"]
-
-    group "classlogger_0" {
-        count = 20000
-
-        constraint {
-            attribute = "$node.class"
-            value     = "0"
-        }
-
-        restart {
-            mode = "fail"
-            attempts = 0
-        }
-
-        task "classlogger_0" {
-            driver = "exec"
-
-            config {
-                command = "classlogger"
-            }
-
-            resources {
-                cpu = 50
-                memory = 50
-            }
-
-            env {
-                REDIS_ADDR = "redis.service.consul:6379"
-                NODE_CLASS = "$node.class"
-            }
-        }
-    }
+    datacenters = ["us-central1"]
 
     group "classlogger_1" {
         count = 20000
 
         constraint {
             attribute = "$node.class"
-            value     = "1"
+            value     = "class_1"
         }
 
         restart {
@@ -54,8 +22,8 @@ job "bench-exec-classlogger-100k" {
             }
 
             resources {
-                cpu = 50
-                memory = 50
+                cpu = 100
+                memory = 15
             }
 
             env {
@@ -70,7 +38,7 @@ job "bench-exec-classlogger-100k" {
 
         constraint {
             attribute = "$node.class"
-            value     = "2"
+            value     = "class_2"
         }
 
         restart {
@@ -86,8 +54,8 @@ job "bench-exec-classlogger-100k" {
             }
 
             resources {
-                cpu = 50
-                memory = 50
+                cpu = 100
+                memory = 15
             }
 
             env {
@@ -102,7 +70,7 @@ job "bench-exec-classlogger-100k" {
 
         constraint {
             attribute = "$node.class"
-            value     = "3"
+            value     = "class_3"
         }
 
         restart {
@@ -118,8 +86,8 @@ job "bench-exec-classlogger-100k" {
             }
 
             resources {
-                cpu = 50
-                memory = 50
+                cpu = 100
+                memory = 15
             }
 
             env {
@@ -134,7 +102,7 @@ job "bench-exec-classlogger-100k" {
 
         constraint {
             attribute = "$node.class"
-            value     = "4"
+            value     = "class_4"
         }
 
         restart {
@@ -150,8 +118,40 @@ job "bench-exec-classlogger-100k" {
             }
 
             resources {
-                cpu = 50
-                memory = 50
+                cpu = 100
+                memory = 15
+            }
+
+            env {
+                REDIS_ADDR = "redis.service.consul:6379"
+                NODE_CLASS = "$node.class"
+            }
+        }
+    }
+
+    group "classlogger_5" {
+        count = 20000
+
+        constraint {
+            attribute = "$node.class"
+            value     = "class_5"
+        }
+
+        restart {
+            mode = "fail"
+            attempts = 0
+        }
+
+        task "classlogger_5" {
+            driver = "exec"
+
+            config {
+                command = "classlogger"
+            }
+
+            resources {
+                cpu = 100
+                memory = 15
             }
 
             env {
