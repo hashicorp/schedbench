@@ -172,7 +172,6 @@ func handleStatus() int {
 	// Set up the args
 	args := &api.QueryOptions{
 		AllowStale: true,
-		WaitIndex:  1,
 	}
 
 	// Wait for all the evals to be complete.
@@ -184,18 +183,12 @@ EVAL_POLL:
 		time.Sleep(pollInterval)
 
 		// Start the query
-		resp, qm, err := evalEndpoint.List(args)
+		resp, _, err := evalEndpoint.List(args)
 		if err != nil {
 			// Only log and continue to skip minor errors
 			log.Printf("[ERR] nomad: failed querying evals: %v", err)
 			continue
 		}
-
-		// Check the index
-		if qm.LastIndex == args.WaitIndex {
-			continue
-		}
-		args.WaitIndex = qm.LastIndex
 
 		// Filter out evaluations that aren't for the jobs we are tracking.
 		var filter []*api.Evaluation
