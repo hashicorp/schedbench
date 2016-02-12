@@ -7,6 +7,6 @@ classlogger:
 	GOOS=linux GOARCH=amd64 go build -o classlogger/classlogger ./classlogger
 
 docker: classlogger
-	docker build -t hashicorp/nomad-c1m:latest .
+	docker build -t hashicorp/nomad-c1m:0.1 .
 
 .PHONY: default classlogger docker
