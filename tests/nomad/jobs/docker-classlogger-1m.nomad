@@ -18,7 +18,7 @@ job "bench-docker-classlogger-1m" {
             driver = "docker"
 
             config {
-                image = "hashicorp/nomad-c1m:latest"
+                image = "hashicorp/nomad-c1m:0.1"
             }
 
             resources {
@@ -50,7 +50,7 @@ job "bench-docker-classlogger-1m" {
             driver = "docker"
 
             config {
-                image = "hashicorp/nomad-c1m:latest"
+                image = "hashicorp/nomad-c1m:0.1"
             }
 
             resources {
@@ -82,7 +82,7 @@ job "bench-docker-classlogger-1m" {
             driver = "docker"
 
             config {
-                image = "hashicorp/nomad-c1m:latest"
+                image = "hashicorp/nomad-c1m:0.1"
             }
 
             resources {
@@ -114,7 +114,7 @@ job "bench-docker-classlogger-1m" {
             driver = "docker"
 
             config {
-                image = "hashicorp/nomad-c1m:latest"
+                image = "hashicorp/nomad-c1m:0.1"
             }
 
             resources {
@@ -146,7 +146,7 @@ job "bench-docker-classlogger-1m" {
             driver = "docker"
 
             config {
-                image = "hashicorp/nomad-c1m:latest"
+                image = "hashicorp/nomad-c1m:0.1"
             }
 
             resources {
