@@ -1,8 +1,8 @@
-job "bench-docker-classlogger-test" {
+job "bench-docker-classlogger-1k" {
     datacenters = ["us-central1"]
 
     group "classlogger_1" {
-        count = 5
+        count = 200
 
         constraint {
             attribute = "${node.class}"
@@ -34,7 +34,7 @@ job "bench-docker-classlogger-test" {
     }
 
     group "classlogger_2" {
-        count = 5
+        count = 200
 
         constraint {
             attribute = "${node.class}"
@@ -66,7 +66,7 @@ job "bench-docker-classlogger-test" {
     }
 
     group "classlogger_3" {
-        count = 5
+        count = 200
 
         constraint {
             attribute = "${node.class}"
@@ -98,7 +98,7 @@ job "bench-docker-classlogger-test" {
     }
 
     group "classlogger_4" {
-        count = 5
+        count = 200
 
         constraint {
             attribute = "${node.class}"
@@ -130,7 +130,7 @@ job "bench-docker-classlogger-test" {
     }
 
     group "classlogger_5" {
-        count = 5
+        count = 200
 
         constraint {
             attribute = "${node.class}"
