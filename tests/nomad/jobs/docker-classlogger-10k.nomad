@@ -18,7 +18,8 @@ job "bench-docker-classlogger-10k" {
             driver = "docker"
 
             config {
-                image = "hashicorp/nomad-c1m:0.1"
+                image        = "hashicorp/nomad-c1m:0.1"
+                network_mode = "host"
             }
 
             resources {
@@ -50,7 +51,8 @@ job "bench-docker-classlogger-10k" {
             driver = "docker"
 
             config {
-                image = "hashicorp/nomad-c1m:0.1"
+                image        = "hashicorp/nomad-c1m:0.1"
+                network_mode = "host"
             }
 
             resources {
@@ -82,7 +84,8 @@ job "bench-docker-classlogger-10k" {
             driver = "docker"
 
             config {
-                image = "hashicorp/nomad-c1m:0.1"
+                image        = "hashicorp/nomad-c1m:0.1"
+                network_mode = "host"
             }
 
             resources {
@@ -114,7 +117,8 @@ job "bench-docker-classlogger-10k" {
             driver = "docker"
 
             config {
-                image = "hashicorp/nomad-c1m:0.1"
+                image        = "hashicorp/nomad-c1m:0.1"
+                network_mode = "host"
             }
 
             resources {
@@ -146,7 +150,8 @@ job "bench-docker-classlogger-10k" {
             driver = "docker"
 
             config {
-                image = "hashicorp/nomad-c1m:0.1"
+                image        = "hashicorp/nomad-c1m:0.1"
+                network_mode = "host"
             }
 
             resources {

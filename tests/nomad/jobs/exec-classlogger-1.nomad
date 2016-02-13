@@ -1,8 +1,8 @@
-job "bench-docker-classlogger-1k" {
+job "bench-exec-classlogger-1" {
     datacenters = ["us-central1"]
 
     group "classlogger_1" {
-        count = 200
+        count = 1
 
         constraint {
             attribute = "${node.class}"
@@ -15,11 +15,10 @@ job "bench-docker-classlogger-1k" {
         }
 
         task "classlogger_1" {
-            driver = "docker"
+            driver = "exec"
 
             config {
-                image        = "hashicorp/nomad-c1m:0.1"
-                network_mode = "host"
+                command = "classlogger"
             }
 
             resources {
@@ -35,7 +34,7 @@ job "bench-docker-classlogger-1k" {
     }
 
     group "classlogger_2" {
-        count = 200
+        count = 1
 
         constraint {
             attribute = "${node.class}"
@@ -48,11 +47,10 @@ job "bench-docker-classlogger-1k" {
         }
 
         task "classlogger_2" {
-            driver = "docker"
+            driver = "exec"
 
             config {
-                image        = "hashicorp/nomad-c1m:0.1"
-                network_mode = "host"
+                command = "classlogger"
             }
 
             resources {
@@ -68,7 +66,7 @@ job "bench-docker-classlogger-1k" {
     }
 
     group "classlogger_3" {
-        count = 200
+        count = 1
 
         constraint {
             attribute = "${node.class}"
@@ -81,11 +79,10 @@ job "bench-docker-classlogger-1k" {
         }
 
         task "classlogger_3" {
-            driver = "docker"
+            driver = "exec"
 
             config {
-                image        = "hashicorp/nomad-c1m:0.1"
-                network_mode = "host"
+                command = "classlogger"
             }
 
             resources {
@@ -101,7 +98,7 @@ job "bench-docker-classlogger-1k" {
     }
 
     group "classlogger_4" {
-        count = 200
+        count = 1
 
         constraint {
             attribute = "${node.class}"
@@ -114,11 +111,10 @@ job "bench-docker-classlogger-1k" {
         }
 
         task "classlogger_4" {
-            driver = "docker"
+            driver = "exec"
 
             config {
-                image        = "hashicorp/nomad-c1m:0.1"
-                network_mode = "host"
+                command = "classlogger"
             }
 
             resources {
@@ -134,7 +130,7 @@ job "bench-docker-classlogger-1k" {
     }
 
     group "classlogger_5" {
-        count = 200
+        count = 1
 
         constraint {
             attribute = "${node.class}"
@@ -147,11 +143,10 @@ job "bench-docker-classlogger-1k" {
         }
 
         task "classlogger_5" {
-            driver = "docker"
+            driver = "exec"
 
             config {
-                image        = "hashicorp/nomad-c1m:0.1"
-                network_mode = "host"
+                command = "classlogger"
             }
 
             resources {
