@@ -1,8 +1,8 @@
-job "bench-docker-classlogger-100k" {
+job "bench-docker-classlogger-1k" {
   datacenters = ["us-central1"]
 
   group "classlogger_1" {
-    count = 20000
+    count = 200
 
     constraint {
       attribute = "${node.class}"
@@ -37,11 +37,15 @@ job "bench-docker-classlogger-100k" {
         REDIS_ADDR = "redis.service.consul:6379"
         NODE_CLASS = "${node.class}"
       }
+
+      service {
+        name = "${JOB}-${TASKGROUP}-classlogger"
+      }
     }
   }
 
   group "classlogger_2" {
-    count = 20000
+    count = 200
 
     constraint {
       attribute = "${node.class}"
@@ -76,11 +80,15 @@ job "bench-docker-classlogger-100k" {
         REDIS_ADDR = "redis.service.consul:6379"
         NODE_CLASS = "${node.class}"
       }
+
+      service {
+        name = "${JOB}-${TASKGROUP}-classlogger"
+      }
     }
   }
 
   group "classlogger_3" {
-    count = 20000
+    count = 200
 
     constraint {
       attribute = "${node.class}"
@@ -115,11 +123,15 @@ job "bench-docker-classlogger-100k" {
         REDIS_ADDR = "redis.service.consul:6379"
         NODE_CLASS = "${node.class}"
       }
+
+      service {
+        name = "${JOB}-${TASKGROUP}-classlogger"
+      }
     }
   }
 
   group "classlogger_4" {
-    count = 20000
+    count = 200
 
     constraint {
       attribute = "${node.class}"
@@ -154,11 +166,15 @@ job "bench-docker-classlogger-100k" {
         REDIS_ADDR = "redis.service.consul:6379"
         NODE_CLASS = "${node.class}"
       }
+
+      service {
+        name = "${JOB}-${TASKGROUP}-classlogger"
+      }
     }
   }
 
   group "classlogger_5" {
-    count = 20000
+    count = 200
 
     constraint {
       attribute = "${node.class}"
@@ -192,6 +208,10 @@ job "bench-docker-classlogger-100k" {
       env {
         REDIS_ADDR = "redis.service.consul:6379"
         NODE_CLASS = "${node.class}"
+      }
+
+      service {
+        name = "${JOB}-${TASKGROUP}-classlogger"
       }
     }
   }
