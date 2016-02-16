@@ -10,7 +10,7 @@ job "bench-docker-classlogger-100k" {
         }
 
         restart {
-            mode = "fail"
+            mode     = "fail"
             attempts = 0
         }
 
@@ -23,8 +23,14 @@ job "bench-docker-classlogger-100k" {
             }
 
             resources {
-                cpu = 100
+                cpu    = 100
                 memory = 15
+                disk   = 10
+            }
+
+            logs {
+                max_files     = 1
+                max_file_size = 5
             }
 
             env {
@@ -43,7 +49,7 @@ job "bench-docker-classlogger-100k" {
         }
 
         restart {
-            mode = "fail"
+            mode     = "fail"
             attempts = 0
         }
 
@@ -56,8 +62,14 @@ job "bench-docker-classlogger-100k" {
             }
 
             resources {
-                cpu = 100
+                cpu    = 100
                 memory = 15
+                disk   = 10
+            }
+
+            logs {
+                max_files     = 1
+                max_file_size = 5
             }
 
             env {
@@ -76,7 +88,7 @@ job "bench-docker-classlogger-100k" {
         }
 
         restart {
-            mode = "fail"
+            mode     = "fail"
             attempts = 0
         }
 
@@ -89,8 +101,14 @@ job "bench-docker-classlogger-100k" {
             }
 
             resources {
-                cpu = 100
+                cpu    = 100
                 memory = 15
+                disk   = 10
+            }
+
+            logs {
+                max_files     = 1
+                max_file_size = 5
             }
 
             env {
@@ -109,7 +127,7 @@ job "bench-docker-classlogger-100k" {
         }
 
         restart {
-            mode = "fail"
+            mode     = "fail"
             attempts = 0
         }
 
@@ -122,8 +140,14 @@ job "bench-docker-classlogger-100k" {
             }
 
             resources {
-                cpu = 100
+                cpu    = 100
                 memory = 15
+                disk   = 10
+            }
+
+            logs {
+                max_files     = 1
+                max_file_size = 5
             }
 
             env {
@@ -142,7 +166,7 @@ job "bench-docker-classlogger-100k" {
         }
 
         restart {
-            mode = "fail"
+            mode     = "fail"
             attempts = 0
         }
 
@@ -155,8 +179,14 @@ job "bench-docker-classlogger-100k" {
             }
 
             resources {
-                cpu = 100
+                cpu    = 100
                 memory = 15
+                disk   = 10
+            }
+
+            logs {
+                max_files     = 1
+                max_file_size = 5
             }
 
             env {
