@@ -22,7 +22,7 @@ job "bench-exec-classlogger-100k" {
             }
 
             resources {
-                cpu    = 100
+                cpu    = 20
                 memory = 15
                 disk   = 10
             }
@@ -60,7 +60,7 @@ job "bench-exec-classlogger-100k" {
             }
 
             resources {
-                cpu    = 100
+                cpu    = 20
                 memory = 15
                 disk   = 10
             }
@@ -98,7 +98,7 @@ job "bench-exec-classlogger-100k" {
             }
 
             resources {
-                cpu    = 100
+                cpu    = 20
                 memory = 15
                 disk   = 10
             }
@@ -136,7 +136,7 @@ job "bench-exec-classlogger-100k" {
             }
 
             resources {
-                cpu    = 100
+                cpu    = 20
                 memory = 15
                 disk   = 10
             }
@@ -174,7 +174,7 @@ job "bench-exec-classlogger-100k" {
             }
 
             resources {
-                cpu    = 100
+                cpu    = 20
                 memory = 15
                 disk   = 10
             }
