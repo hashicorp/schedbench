@@ -37,6 +37,10 @@ job "bench-docker-classlogger-100k" {
         REDIS_ADDR = "redis.service.consul:6379"
         NODE_CLASS = "${node.class}"
       }
+
+      service {
+        name = "${JOB}-${TASKGROUP}-classlogger"
+      }
     }
   }
 
@@ -75,6 +79,10 @@ job "bench-docker-classlogger-100k" {
       env {
         REDIS_ADDR = "redis.service.consul:6379"
         NODE_CLASS = "${node.class}"
+      }
+
+      service {
+        name = "${JOB}-${TASKGROUP}-classlogger"
       }
     }
   }
@@ -115,6 +123,10 @@ job "bench-docker-classlogger-100k" {
         REDIS_ADDR = "redis.service.consul:6379"
         NODE_CLASS = "${node.class}"
       }
+
+      service {
+        name = "${JOB}-${TASKGROUP}-classlogger"
+      }
     }
   }
 
@@ -154,6 +166,10 @@ job "bench-docker-classlogger-100k" {
         REDIS_ADDR = "redis.service.consul:6379"
         NODE_CLASS = "${node.class}"
       }
+
+      service {
+        name = "${JOB}-${TASKGROUP}-classlogger"
+      }
     }
   }
 
@@ -192,6 +208,10 @@ job "bench-docker-classlogger-100k" {
       env {
         REDIS_ADDR = "redis.service.consul:6379"
         NODE_CLASS = "${node.class}"
+      }
+
+      service {
+        name = "${JOB}-${TASKGROUP}-classlogger"
       }
     }
   }
