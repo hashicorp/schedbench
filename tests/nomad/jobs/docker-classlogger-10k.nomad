@@ -23,7 +23,7 @@ job "bench-docker-classlogger-10k" {
             }
 
             resources {
-                cpu    = 100
+                cpu    = 20
                 memory = 15
                 disk   = 10
             }
@@ -62,7 +62,7 @@ job "bench-docker-classlogger-10k" {
             }
 
             resources {
-                cpu    = 100
+                cpu    = 20
                 memory = 15
                 disk   = 10
             }
@@ -101,7 +101,7 @@ job "bench-docker-classlogger-10k" {
             }
 
             resources {
-                cpu    = 100
+                cpu    = 20
                 memory = 15
                 disk   = 10
             }
@@ -140,7 +140,7 @@ job "bench-docker-classlogger-10k" {
             }
 
             resources {
-                cpu    = 100
+                cpu    = 20
                 memory = 15
                 disk   = 10
             }
@@ -179,7 +179,7 @@ job "bench-docker-classlogger-10k" {
             }
 
             resources {
-                cpu    = 100
+                cpu    = 20
                 memory = 15
                 disk   = 10
             }
