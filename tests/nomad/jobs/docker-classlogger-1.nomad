@@ -1,4 +1,4 @@
-job "bench-docker-classlogger-100k" {
+job "bench-docker-classlogger-1" {
   datacenters = ["us-central1"]
 
   group "classlogger_1" {
