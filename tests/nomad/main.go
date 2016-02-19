@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"sort"
 	"strconv"
 	"time"
@@ -18,7 +19,16 @@ import (
 
 const (
 	// pollInterval is how often the status command will poll for results.
-	pollInterval = 3 * time.Minute
+	pollInterval = 9 * time.Second
+
+	// blockedEvalTries is how many times we will wait for a blocked eval to
+	// complete before moving on. 
+	blockedEvalTries = 3
+
+	// pendingAllocTries is how many times we will wait for a pending alloc to
+	// complete before moving on. 
+	pendingAllocTries = 3
+
 )
 
 var numJobs, totalProcs int
@@ -177,6 +187,7 @@ func handleStatus() int {
 	// Wait for all the evals to be complete.
 	evals := make(map[string]*api.Evaluation, minEvals)
 	failedEvals := make(map[string]struct{})
+	blockedEvals := make(map[string]int)
 EVAL_POLL:
 	for {
 		log.Printf("[DEBUG] nomad: next eval poll in %s", pollInterval)
@@ -215,6 +226,14 @@ EVAL_POLL:
 				evals[eval.ID] = eval
 			case "canceled":
 				// Do nothing since it was a redundant eval.
+			case "blocked":
+				blockedEvals[eval.ID]++
+				tries := blockedEvals[eval.ID]
+				if tries < blockedEvalTries {
+					continue EVAL_POLL
+				} else if tries == blockedEvalTries {
+					log.Printf("[DEBUG] nomad: abandoning blocked eval %q", eval.ID)
+				}
 			default:
 				continue EVAL_POLL
 			}
@@ -224,9 +243,14 @@ EVAL_POLL:
 	}
 
 	// We now have all the evals, gather the allocations and placement times.
-	scheduleTimes := make(map[string]int64, totalAllocs)
-	startTimes := make(map[string]int64, totalAllocs)
-	failedAllocs := make(map[string]struct{})
+
+	// scheduleTime is a map of alloc ID to map of desired status and time.
+	scheduleTimes := make(map[string]map[string]int64, totalAllocs)
+	startTimes := make(map[string]int64, totalAllocs) // When a task was started
+	receivedTimes := make(map[string]int64, totalAllocs) // When a task was received by the client
+	failedAllocs := make(map[string]int64) // Time an alloc failed
+	failedReason := make(map[string]string) // Reason an alloc failed
+	pendingAllocs := make(map[string]int) // Counts how many time the alloc was in pending state
 	first := true
 ALLOC_POLL:
 	for {
@@ -247,27 +271,51 @@ ALLOC_POLL:
 
 			for _, alloc := range resp {
 				// Capture the schedule time.
-				scheduleTimes[alloc.ID] = alloc.CreateTime
+				allocTimes, ok := scheduleTimes[alloc.ID]
+				if !ok {
+					allocTimes = make(map[string]int64, 3)
+					scheduleTimes[alloc.ID] = allocTimes
+				}
+				allocTimes[alloc.DesiredStatus] = alloc.CreateTime
 
 				// Ensure that they have started or have failed.
 				switch alloc.ClientStatus {
 				case "failed":
-					failedAllocs[alloc.ID] = struct{}{}
+					failedAllocs[alloc.ID] = alloc.CreateTime
+					var failures []string
+					for _, state := range alloc.TaskStates {
+						if state.State == "failed" {
+							failures = append(failures, state.Events[0].DriverError)
+						}
+					}
+					failedReason[alloc.ID] = strings.Join(failures, ",")
 					continue
 				case "pending":
-					continue ALLOC_POLL
+					pendingAllocs[alloc.ID]++
+					tries := pendingAllocs[alloc.ID]
+					if tries < pendingAllocTries {
+						continue ALLOC_POLL
+					} else if tries == pendingAllocTries {
+						log.Printf("[DEBUG] nomad: abandoning alloc %q", alloc.ID)
+					}
+					continue
 				}
 
 				// Detect the start time.
 				for task, state := range alloc.TaskStates {
-					if state.State == "pending" || len(state.Events) == 0 {
+					if len(state.Events) == 0 {
 						continue ALLOC_POLL
 					}
 
-					// Get the first event.
-					startEvent := state.Events[0]
-					time := startEvent.Time
-					startTimes[fmt.Sprintf("%v-%v", alloc.ID, task)] = time
+					for _, event := range state.Events {
+						time := event.Time
+						switch event.Type {
+							case "Started":
+								startTimes[fmt.Sprintf("%v-%v", alloc.ID, task)] = time
+							case "Received":
+								receivedTimes[fmt.Sprintf("%v-%v", alloc.ID, task)] = time
+						}
+					}
 				}
 			}
 		}
@@ -275,18 +323,75 @@ ALLOC_POLL:
 		break
 	}
 
+	// Print the failure reasons for client allocs.
+	for id, reason := range failedReason {
+		log.Printf("[DEBUG] nomad: alloc id %q failed on client: %v", id, reason)
+	}
+
 	// Print the results.
 	if l := len(failedEvals); l != 0 {
 		fmt.Fprintf(os.Stdout, "failed_evals|%f\n", float64(l))
 	}
-	if l := len(failedAllocs); l != 0 {
-		fmt.Fprintf(os.Stdout, "failed_allocs|%f\n", float64(l))
+	for time, count := range accumTimes(failedAllocs) {
+		fmt.Fprintf(os.Stdout, "failed_allocs|%f|%d\n", float64(count), time)
 	}
 	for time, count := range accumTimes(startTimes) {
 		fmt.Fprintf(os.Stdout, "running|%f|%d\n", float64(count), time)
 	}
-	for time, count := range accumTimes(scheduleTimes) {
-		fmt.Fprintf(os.Stdout, "placed|%f|%d\n", float64(count), time)
+	for time, count := range accumTimes(receivedTimes) {
+		fmt.Fprintf(os.Stdout, "received|%f|%d\n", float64(count), time)
+	}
+	for time, count := range accumTimesOn("run", scheduleTimes) {
+		fmt.Fprintf(os.Stdout, "placed_run|%f|%d\n", float64(count), time)
+	}
+	for time, count := range accumTimesOn("failed", scheduleTimes) {
+		fmt.Fprintf(os.Stdout, "placed_failed|%f|%d\n", float64(count), time)
+	}
+	for time, count := range accumTimesOn("stop", scheduleTimes) {
+		fmt.Fprintf(os.Stdout, "placed_stop|%f|%d\n", float64(count), time)
+	}
+
+	// Aggregate eval triggerbys.
+	triggers := make(map[string]int, len(evals))
+	for _, eval := range evals {
+		triggers[eval.TriggeredBy]++
+	}
+	for trigger, count := range triggers {
+		fmt.Fprintf(os.Stdout, "trigger:%s|%f\n", trigger, float64(count))
+	}
+
+	// Print if the scheduler changed scheduling decisions
+	flips := make(map[string]map[string]int64) // alloc id -> map[flipType]time
+	flipTypes := make(map[string]struct{})
+	for id, decisions := range scheduleTimes {
+		if len(decisions) < 2 {
+			continue
+		}
+		// Have decision -> time
+		// 1) time -> decision
+		// 2) sort times
+		// 3) print transitions
+		flips[id] = make(map[string]int64)
+		inverted := make(map[int64]string, len(decisions))
+		times := make([]int, 0, len(decisions))
+		for k, v := range decisions {
+			inverted[v] = k
+			times = append(times, int(v))
+		}
+		sort.Ints(times)
+		for i := 1; i < len(times); i++ {
+			from := decisions[inverted[int64(times[i-1])]]
+			to := decisions[inverted[int64(times[i])]]
+			flipType := fmt.Sprintf("%s-to-%s", from, to)
+			flips[id][flipType] = int64(times[i])
+			flipTypes[flipType] = struct{}{}
+		}
+	}
+
+	for flipType, _ := range flips {
+		for time, count := range accumTimesOn(flipType, flips) {
+			fmt.Fprintf(os.Stdout, "placed_stop|%f|%d\n", float64(count), time)
+		}
 	}
 
 	return 0
@@ -326,6 +431,18 @@ func accumTimes(in map[string]int64) map[int64]int64 {
 	}
 
 	return out
+}
+
+func accumTimesOn(innerKey string, in map[string]map[string]int64) map[int64]int64 {
+	converted := make(map[string]int64)
+	for outerKey, data := range in {
+		for k, v := range data {
+			if k == innerKey {
+				converted[outerKey] = v
+			}
+		}
+	}
+	return accumTimes(converted)
 }
 
 func handleTeardown() int {
