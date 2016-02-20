@@ -19,7 +19,7 @@ import (
 
 const (
 	// pollInterval is how often the status command will poll for results.
-	pollInterval = 9 * time.Second
+	pollInterval = 90 * time.Second
 
 	// blockedEvalTries is how many times we will wait for a blocked eval to
 	// complete before moving on. 
