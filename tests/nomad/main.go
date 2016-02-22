@@ -218,6 +218,7 @@ EVAL_POLL:
 
 		// Ensure that all the evals are terminal, otherwise new allocations
 		// could be made.
+		needPoll := false
 		for _, eval := range filter {
 			switch eval.Status {
 			case "failed":
@@ -230,13 +231,17 @@ EVAL_POLL:
 				blockedEvals[eval.ID]++
 				tries := blockedEvals[eval.ID]
 				if tries < blockedEvalTries {
-					continue EVAL_POLL
+					needPoll = true
 				} else if tries == blockedEvalTries {
 					log.Printf("[DEBUG] nomad: abandoning blocked eval %q", eval.ID)
 				}
-			default:
-				continue EVAL_POLL
+			case "pending":
+				needPoll = true
 			}
+		}
+
+		if needPoll {
+			continue EVAL_POLL
 		}
 
 		break
@@ -260,6 +265,7 @@ ALLOC_POLL:
 		}
 		first = false
 
+		needPoll := false
 		for evalID := range evals {
 			// Start the query
 			resp, _, err := evalEndpoint.Allocations(evalID, args)
@@ -294,7 +300,7 @@ ALLOC_POLL:
 					pendingAllocs[alloc.ID]++
 					tries := pendingAllocs[alloc.ID]
 					if tries < pendingAllocTries {
-						continue ALLOC_POLL
+						needPoll = true
 					} else if tries == pendingAllocTries {
 						log.Printf("[DEBUG] nomad: abandoning alloc %q", alloc.ID)
 					}
@@ -304,7 +310,7 @@ ALLOC_POLL:
 				// Detect the start time.
 				for task, state := range alloc.TaskStates {
 					if len(state.Events) == 0 {
-						continue ALLOC_POLL
+						needPoll = true
 					}
 
 					for _, event := range state.Events {
@@ -318,6 +324,10 @@ ALLOC_POLL:
 					}
 				}
 			}
+		}
+
+		if needPoll {
+			continue ALLOC_POLL
 		}
 
 		break
