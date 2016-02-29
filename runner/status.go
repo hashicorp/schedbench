@@ -89,11 +89,7 @@ func (s *statusServer) run() {
 			val:       val,
 			timestamp: ts,
 		}
-		select {
-		case s.updateCh <- update:
-		default:
-			log.Printf("[WARN] runner: update channel full! Dropping update: %v", update)
-		}
+		s.updateCh <- update
 	}
 
 	// Check if we broke out due to an error
