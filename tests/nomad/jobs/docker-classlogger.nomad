@@ -12,6 +12,8 @@ job "bench-docker-classlogger" {
     restart {
       mode   = "fail"
       attempts = 3
+      interval = "5m"
+      delay = "2s"
     }
 
     task "classlogger_1" {
@@ -51,6 +53,8 @@ job "bench-docker-classlogger" {
     restart {
       mode   = "fail"
       attempts = 3
+      interval = "5m"
+      delay = "2s"
     }
 
     task "classlogger_2" {
@@ -90,6 +94,8 @@ job "bench-docker-classlogger" {
     restart {
       mode   = "fail"
       attempts = 3
+      interval = "5m"
+      delay = "2s"
     }
 
     task "classlogger_3" {
@@ -129,6 +135,8 @@ job "bench-docker-classlogger" {
     restart {
       mode   = "fail"
       attempts = 3
+      interval = "5m"
+      delay = "2s"
     }
 
     task "classlogger_4" {
@@ -168,6 +176,8 @@ job "bench-docker-classlogger" {
     restart {
       mode   = "fail"
       attempts = 3
+      interval = "5m"
+      delay = "2s"
     }
 
     task "classlogger_5" {
