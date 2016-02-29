@@ -1,8 +1,8 @@
-job "bench-docker-classlogger-1" {
+job "bench-raw-exec-classlogger" {
   datacenters = ["us-central1"]
 
   group "classlogger_1" {
-    count = 1
+    count = 20
 
     constraint {
       attribute = "${node.class}"
@@ -11,15 +11,14 @@ job "bench-docker-classlogger-1" {
 
     restart {
       mode   = "fail"
-      attempts = 0
+      attempts = 3
     }
 
     task "classlogger_1" {
-      driver = "docker"
+      driver = "raw_exec"
 
       config {
-        image    = "hashicorp/nomad-c1m:0.1"
-        network_mode = "host"
+        command = "classlogger"
       }
 
       resources {
@@ -37,11 +36,15 @@ job "bench-docker-classlogger-1" {
         REDIS_ADDR = "redis.service.consul:6379"
         NODE_CLASS = "${node.class}"
       }
+
+      service {
+        name = "${JOB}-${TASKGROUP}-classlogger"
+      }
     }
   }
 
   group "classlogger_2" {
-    count = 1
+    count = 20
 
     constraint {
       attribute = "${node.class}"
@@ -50,15 +53,14 @@ job "bench-docker-classlogger-1" {
 
     restart {
       mode   = "fail"
-      attempts = 0
+      attempts = 3
     }
 
     task "classlogger_2" {
-      driver = "docker"
+      driver = "raw_exec"
 
       config {
-        image    = "hashicorp/nomad-c1m:0.1"
-        network_mode = "host"
+        command = "classlogger"
       }
 
       resources {
@@ -76,11 +78,15 @@ job "bench-docker-classlogger-1" {
         REDIS_ADDR = "redis.service.consul:6379"
         NODE_CLASS = "${node.class}"
       }
+
+      service {
+        name = "${JOB}-${TASKGROUP}-classlogger"
+      }
     }
   }
 
   group "classlogger_3" {
-    count = 1
+    count = 20
 
     constraint {
       attribute = "${node.class}"
@@ -89,15 +95,14 @@ job "bench-docker-classlogger-1" {
 
     restart {
       mode   = "fail"
-      attempts = 0
+      attempts = 3
     }
 
     task "classlogger_3" {
-      driver = "docker"
+      driver = "raw_exec"
 
       config {
-        image    = "hashicorp/nomad-c1m:0.1"
-        network_mode = "host"
+        command = "classlogger"
       }
 
       resources {
@@ -115,11 +120,15 @@ job "bench-docker-classlogger-1" {
         REDIS_ADDR = "redis.service.consul:6379"
         NODE_CLASS = "${node.class}"
       }
+
+      service {
+        name = "${JOB}-${TASKGROUP}-classlogger"
+      }
     }
   }
 
   group "classlogger_4" {
-    count = 1
+    count = 20
 
     constraint {
       attribute = "${node.class}"
@@ -128,15 +137,14 @@ job "bench-docker-classlogger-1" {
 
     restart {
       mode   = "fail"
-      attempts = 0
+      attempts = 3
     }
 
     task "classlogger_4" {
-      driver = "docker"
+      driver = "raw_exec"
 
       config {
-        image    = "hashicorp/nomad-c1m:0.1"
-        network_mode = "host"
+        command = "classlogger"
       }
 
       resources {
@@ -154,11 +162,15 @@ job "bench-docker-classlogger-1" {
         REDIS_ADDR = "redis.service.consul:6379"
         NODE_CLASS = "${node.class}"
       }
+
+      service {
+        name = "${JOB}-${TASKGROUP}-classlogger"
+      }
     }
   }
 
   group "classlogger_5" {
-    count = 1
+    count = 20
 
     constraint {
       attribute = "${node.class}"
@@ -167,15 +179,14 @@ job "bench-docker-classlogger-1" {
 
     restart {
       mode   = "fail"
-      attempts = 0
+      attempts = 3
     }
 
     task "classlogger_5" {
-      driver = "docker"
+      driver = "raw_exec"
 
       config {
-        image    = "hashicorp/nomad-c1m:0.1"
-        network_mode = "host"
+        command = "classlogger"
       }
 
       resources {
@@ -192,6 +203,10 @@ job "bench-docker-classlogger-1" {
       env {
         REDIS_ADDR = "redis.service.consul:6379"
         NODE_CLASS = "${node.class}"
+      }
+
+      service {
+        name = "${JOB}-${TASKGROUP}-classlogger"
       }
     }
   }

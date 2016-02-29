@@ -1,8 +1,8 @@
-job "bench-docker-classlogger-1m" {
+job "bench-docker-classlogger" {
   datacenters = ["us-central1"]
 
   group "classlogger_1" {
-    count = 200000
+    count = 20
 
     constraint {
       attribute = "${node.class}"
@@ -11,7 +11,7 @@ job "bench-docker-classlogger-1m" {
 
     restart {
       mode   = "fail"
-      attempts = 0
+      attempts = 3
     }
 
     task "classlogger_1" {
@@ -37,15 +37,11 @@ job "bench-docker-classlogger-1m" {
         REDIS_ADDR = "redis.service.consul:6379"
         NODE_CLASS = "${node.class}"
       }
-
-      service {
-        name = "${JOB}-${TASKGROUP}-classlogger"
-      }
     }
   }
 
   group "classlogger_2" {
-    count = 200000
+    count = 20
 
     constraint {
       attribute = "${node.class}"
@@ -54,7 +50,7 @@ job "bench-docker-classlogger-1m" {
 
     restart {
       mode   = "fail"
-      attempts = 0
+      attempts = 3
     }
 
     task "classlogger_2" {
@@ -80,15 +76,11 @@ job "bench-docker-classlogger-1m" {
         REDIS_ADDR = "redis.service.consul:6379"
         NODE_CLASS = "${node.class}"
       }
-
-      service {
-        name = "${JOB}-${TASKGROUP}-classlogger"
-      }
     }
   }
 
   group "classlogger_3" {
-    count = 200000
+    count = 20
 
     constraint {
       attribute = "${node.class}"
@@ -97,7 +89,7 @@ job "bench-docker-classlogger-1m" {
 
     restart {
       mode   = "fail"
-      attempts = 0
+      attempts = 3
     }
 
     task "classlogger_3" {
@@ -123,15 +115,11 @@ job "bench-docker-classlogger-1m" {
         REDIS_ADDR = "redis.service.consul:6379"
         NODE_CLASS = "${node.class}"
       }
-
-      service {
-        name = "${JOB}-${TASKGROUP}-classlogger"
-      }
     }
   }
 
   group "classlogger_4" {
-    count = 200000
+    count = 20
 
     constraint {
       attribute = "${node.class}"
@@ -140,7 +128,7 @@ job "bench-docker-classlogger-1m" {
 
     restart {
       mode   = "fail"
-      attempts = 0
+      attempts = 3
     }
 
     task "classlogger_4" {
@@ -166,15 +154,11 @@ job "bench-docker-classlogger-1m" {
         REDIS_ADDR = "redis.service.consul:6379"
         NODE_CLASS = "${node.class}"
       }
-
-      service {
-        name = "${JOB}-${TASKGROUP}-classlogger"
-      }
     }
   }
 
   group "classlogger_5" {
-    count = 200000
+    count = 20
 
     constraint {
       attribute = "${node.class}"
@@ -183,7 +167,7 @@ job "bench-docker-classlogger-1m" {
 
     restart {
       mode   = "fail"
-      attempts = 0
+      attempts = 3
     }
 
     task "classlogger_5" {
@@ -208,10 +192,6 @@ job "bench-docker-classlogger-1m" {
       env {
         REDIS_ADDR = "redis.service.consul:6379"
         NODE_CLASS = "${node.class}"
-      }
-
-      service {
-        name = "${JOB}-${TASKGROUP}-classlogger"
       }
     }
   }
