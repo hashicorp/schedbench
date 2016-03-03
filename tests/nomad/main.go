@@ -21,6 +21,8 @@ const (
 	// pollInterval is how often the status command will poll for results.
 	pollInterval = 300 * time.Second
 
+	maxWait = 10 * time.Minute
+
 	// blockedEvalTries is how many times we will wait for a blocked eval to
 	// complete before moving on.
 	blockedEvalTries = 3
@@ -206,13 +208,17 @@ func handleStatus() int {
 	}
 
 	// Wait for all the evals to be complete.
+	cutoff := time.Now().Add(maxWait)
 	evals := make(map[string]*api.Evaluation, minEvals)
 	failedEvals := make(map[string]struct{})
 	blockedEvals := make(map[string]int)
 EVAL_POLL:
 	for {
-		log.Printf("[DEBUG] nomad: next eval poll in %s", pollInterval)
-		time.Sleep(pollInterval)
+		waitTime, exceeded := getSleepTime(cutoff)
+		if !exceeded {
+			log.Printf("[DEBUG] nomad: next eval poll in %s", waitTime)
+			time.Sleep(waitTime)
+		}
 
 		// Start the query
 		resp, _, err := evalEndpoint.List(args)
@@ -261,7 +267,7 @@ EVAL_POLL:
 			}
 		}
 
-		if needPoll {
+		if needPoll && !exceeded {
 			continue EVAL_POLL
 		}
 
@@ -280,9 +286,10 @@ EVAL_POLL:
 	first := true
 ALLOC_POLL:
 	for {
-		if !first {
-			log.Printf("[DEBUG] nomad: next alloc poll in %s", pollInterval)
-			time.Sleep(pollInterval)
+		waitTime, exceeded := getSleepTime(cutoff)
+		if !exceeded && !first {
+			log.Printf("[DEBUG] nomad: next eval poll in %s", waitTime)
+			time.Sleep(waitTime)
 		}
 		first = false
 
@@ -347,7 +354,7 @@ ALLOC_POLL:
 			}
 		}
 
-		if needPoll {
+		if needPoll && !exceeded {
 			continue ALLOC_POLL
 		}
 
@@ -426,6 +433,22 @@ ALLOC_POLL:
 	}
 
 	return 0
+}
+
+// getSleepTime takes a cutoff time and returns how long you should sleep
+// between polls and whether you have exceeded the cutoff.
+func getSleepTime(cutoff time.Time) (time.Duration, bool) {
+	now := time.Now()
+	if now.After(cutoff) {
+		return time.Duration(0), true
+	}
+
+	desiredEnd := now.Add(pollInterval)
+	if desiredEnd.After(cutoff) {
+		return cutoff.Sub(now), false
+	}
+
+	return pollInterval, false
 }
 
 // accumTimes returns a mapping of time to cumulative counts. Takes a map
