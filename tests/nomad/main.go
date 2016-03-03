@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strings"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/nomad/api"
@@ -22,13 +22,12 @@ const (
 	pollInterval = 90 * time.Second
 
 	// blockedEvalTries is how many times we will wait for a blocked eval to
-	// complete before moving on. 
+	// complete before moving on.
 	blockedEvalTries = 3
 
 	// pendingAllocTries is how many times we will wait for a pending alloc to
-	// complete before moving on. 
+	// complete before moving on.
 	pendingAllocTries = 3
-
 )
 
 var numJobs, totalProcs int
@@ -112,6 +111,7 @@ func handleRun() int {
 	}
 
 	log.Printf("[DEBUG] nomad: submitting %d jobs", numJobs)
+	submitting := make(map[string]*api.Job, numJobs)
 	for i := 0; i < numJobs; i++ {
 		copy, err := copystructure.Copy(apiJob)
 		if err != nil {
@@ -121,6 +121,7 @@ func handleRun() int {
 		// Increment the job ID
 		jobCopy := copy.(*api.Job)
 		jobCopy.ID = fmt.Sprintf("%s-%d", jobID, i)
+		submitting[jobCopy.ID] = jobCopy
 		jobsCh <- jobCopy
 	}
 
@@ -133,6 +134,26 @@ func handleRun() int {
 			}
 		case <-stopCh:
 			return 0
+		}
+	}
+
+	// Get the jobs were submitted.
+	submitted, _, err := jobs.List(nil)
+	if err != nil {
+		log.Fatalf("[ERR] nomad: failed listing jobs: %v", err)
+	}
+
+	// See if anything didn't get registered
+	for _, job := range submitted {
+		delete(submitting, job.ID)
+	}
+
+	// Resubmitting anything missed
+	for id, missed := range submitting {
+		log.Printf("[DEBUG] nomad: failed submitting job %q; retrying", id)
+		_, _, err := jobs.Register(missed, nil)
+		if err != nil {
+			log.Printf("[ERR] nomad: failed submitting job: %v", err)
 		}
 	}
 
@@ -251,11 +272,11 @@ EVAL_POLL:
 
 	// scheduleTime is a map of alloc ID to map of desired status and time.
 	scheduleTimes := make(map[string]map[string]int64, totalAllocs)
-	startTimes := make(map[string]int64, totalAllocs) // When a task was started
+	startTimes := make(map[string]int64, totalAllocs)    // When a task was started
 	receivedTimes := make(map[string]int64, totalAllocs) // When a task was received by the client
-	failedAllocs := make(map[string]int64) // Time an alloc failed
-	failedReason := make(map[string]string) // Reason an alloc failed
-	pendingAllocs := make(map[string]int) // Counts how many time the alloc was in pending state
+	failedAllocs := make(map[string]int64)               // Time an alloc failed
+	failedReason := make(map[string]string)              // Reason an alloc failed
+	pendingAllocs := make(map[string]int)                // Counts how many time the alloc was in pending state
 	first := true
 ALLOC_POLL:
 	for {
@@ -308,7 +329,7 @@ ALLOC_POLL:
 				}
 
 				// Detect the start time.
-				for task, state := range alloc.TaskStates {
+				for _, state := range alloc.TaskStates {
 					if len(state.Events) == 0 {
 						needPoll = true
 					}
@@ -316,10 +337,10 @@ ALLOC_POLL:
 					for _, event := range state.Events {
 						time := event.Time
 						switch event.Type {
-							case "Started":
-								startTimes[fmt.Sprintf("%v-%v", alloc.ID, task)] = time
-							case "Received":
-								receivedTimes[fmt.Sprintf("%v-%v", alloc.ID, task)] = time
+						case "Started":
+							startTimes[alloc.ID] = time
+						case "Received":
+							receivedTimes[alloc.ID] = time
 						}
 					}
 				}
@@ -400,7 +421,7 @@ ALLOC_POLL:
 
 	for flipType, _ := range flips {
 		for time, count := range accumTimesOn(flipType, flips) {
-			fmt.Fprintf(os.Stdout, "placed_stop|%f|%d\n", float64(count), time)
+			fmt.Fprintf(os.Stdout, "%v|%f|%d\n", flipType, float64(count), time)
 		}
 	}
 
