@@ -20,7 +20,7 @@ job "bench-raw-exec-classlogger" {
       driver = "raw_exec"
 
       config {
-        command = "classlogger"
+        command = "/usr/bin/classlogger"
       }
 
       resources {
@@ -60,7 +60,7 @@ job "bench-raw-exec-classlogger" {
       driver = "raw_exec"
 
       config {
-        command = "classlogger"
+        command = "/usr/bin/classlogger"
       }
 
       resources {
@@ -100,7 +100,7 @@ job "bench-raw-exec-classlogger" {
       driver = "raw_exec"
 
       config {
-        command = "classlogger"
+        command = "/usr/bin/classlogger"
       }
 
       resources {
@@ -140,7 +140,7 @@ job "bench-raw-exec-classlogger" {
       driver = "raw_exec"
 
       config {
-        command = "classlogger"
+        command = "/usr/bin/classlogger"
       }
 
       resources {
@@ -180,7 +180,7 @@ job "bench-raw-exec-classlogger" {
       driver = "raw_exec"
 
       config {
-        command = "classlogger"
+        command = "/usr/bin/classlogger"
       }
 
       resources {
