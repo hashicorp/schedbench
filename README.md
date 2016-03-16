@@ -2,7 +2,7 @@ Scheduler Benchmarks
 ====================
 
 This is a benchmark framework used to generically test scheduler performance.
-It was created to run Nomad's [Million Container Challenge](#).
+It was created to run Nomad's [Million Container Challenge](https://hashicorp.com/c1m.html).
 
 There is a single "runner", which is the main program to run the benchmarks,
 and multiple "tests", which are individual measurement implementations.
