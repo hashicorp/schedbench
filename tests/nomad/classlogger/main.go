@@ -1,3 +1,6 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 package main
 
 // This program is intended to be run as a scheduled task. The NODE_CLASS
