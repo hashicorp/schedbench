@@ -1,3 +1,5 @@
+# Copyright IBM Corp. 2016, 2026
+
 job "bench-raw-exec-classlogger" {
   datacenters = ["us-central1"]
 

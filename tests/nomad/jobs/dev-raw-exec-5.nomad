@@ -1,3 +1,5 @@
+# Copyright IBM Corp. 2016, 2026
+
 job "bench-raw-exec-redis" {
   datacenters = ["dc1"]
   type = "batch"
