@@ -1,3 +1,5 @@
+// Copyright IBM Corp. 2016, 2026
+
 package main
 
 // This program is intended to be run as a scheduled task. The NODE_CLASS
